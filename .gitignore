@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node / Electron
+node_modules/
+dist/
+out/
+release/
+
+# Build artifacts
+build/
+*.spec
+*.exe
+*.dmg
+*.AppImage
+*.deb
+
+# OS
+.DS_Store
+Thumbs.db

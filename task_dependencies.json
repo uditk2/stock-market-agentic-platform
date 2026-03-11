@@ -1,0 +1,12 @@
+{
+  "tasks": [
+    {"id": "S1", "name": "Repository Foundation", "depends_on": []},
+    {"id": "S2", "name": "Service Core and Plugin Contracts", "depends_on": ["S1"]},
+    {"id": "S3", "name": "Scheduler and Ingestion Job Framework", "depends_on": ["S2"]},
+    {"id": "S4", "name": "Desktop Shell and Runtime Bridge", "depends_on": ["S1", "S2"]},
+    {"id": "S5", "name": "Packaging Configuration", "depends_on": ["S3", "S4"]},
+    {"id": "S6", "name": "CI/CD Packaging Pipeline", "depends_on": ["S5"]},
+    {"id": "S7", "name": "Quality and Runbook", "depends_on": ["S3", "S4"]},
+    {"id": "S8", "name": "GitHub Sync", "depends_on": ["S6", "S7"]}
+  ]
+}

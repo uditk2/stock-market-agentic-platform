@@ -49,3 +49,8 @@ Out of scope:
 - Repository naming/visibility preference if remote creation diverges.
 - Initial default RSS source set.
 - Production signing timeline (post v1 unsigned-first).
+
+## 6. Wave 2 Reassessment Notes
+- The S1-S8 scaffold phase is complete.
+- Next execution order is W1->W2->W3->W6->W4->W5->W8->W7->W9.
+- Priority remains modular extension points and background-runtime reliability.

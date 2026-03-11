@@ -69,3 +69,12 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Plugin registries allow swapping LLM/news/strategy implementations by config.
 - GitHub Actions workflow exists for cross-platform packaging artifacts.
 - Local docs explain build/release flow and extension points.
+
+## Wave 2 Focus (Reassessed)
+- W1: move runtime state to SQLite persistence
+- W2: source/feed configuration management
+- W3-W4: mandatory CLI wizard + embedded terminal
+- W5: OS background service install templates
+- W6: real connector baseline
+- W7-W8: CI hardening + integration/ops tests
+- W9: issue sync and tracking

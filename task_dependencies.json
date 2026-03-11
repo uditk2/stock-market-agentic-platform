@@ -1,12 +1,13 @@
 {
   "tasks": [
-    {"id": "S1", "name": "Repository Foundation", "depends_on": []},
-    {"id": "S2", "name": "Service Core and Plugin Contracts", "depends_on": ["S1"]},
-    {"id": "S3", "name": "Scheduler and Ingestion Job Framework", "depends_on": ["S2"]},
-    {"id": "S4", "name": "Desktop Shell and Runtime Bridge", "depends_on": ["S1", "S2"]},
-    {"id": "S5", "name": "Packaging Configuration", "depends_on": ["S3", "S4"]},
-    {"id": "S6", "name": "CI/CD Packaging Pipeline", "depends_on": ["S5"]},
-    {"id": "S7", "name": "Quality and Runbook", "depends_on": ["S3", "S4"]},
-    {"id": "S8", "name": "GitHub Sync", "depends_on": ["S6", "S7"]}
+    {"id": "W1", "name": "Persistent Runtime State", "depends_on": []},
+    {"id": "W2", "name": "Provider and Feed Configuration", "depends_on": ["W1"]},
+    {"id": "W3", "name": "Mandatory AI CLI Wizard Enforcement", "depends_on": ["W1"]},
+    {"id": "W4", "name": "Embedded Terminal Runtime", "depends_on": ["W3"]},
+    {"id": "W5", "name": "Background Service Installation Layer", "depends_on": ["W3"]},
+    {"id": "W6", "name": "Real Connector Baseline", "depends_on": ["W2"]},
+    {"id": "W7", "name": "CI Packaging Hardening", "depends_on": ["W4", "W5", "W6"]},
+    {"id": "W8", "name": "Integration and Ops Readiness", "depends_on": ["W4", "W6"]},
+    {"id": "W9", "name": "GitHub Issue Sync and Tracking", "depends_on": ["W7", "W8"]}
   ]
 }

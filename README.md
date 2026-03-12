@@ -19,6 +19,9 @@ Modular desktop platform scaffold for NSE F&O signal/recommendation workflows.
 4. After wizard passes, workspace unlocks and service is managed without manual service-install commands.
 
 ### macOS Unsigned Install (No Notarization)
+Direct latest DMG (no Actions artifact ZIP wrapper):
+- https://github.com/uditk2/stock-market-agentic-platform/releases/tag/smap-mac-latest
+
 If macOS reports the app as damaged/blocked, run:
 
 ```bash

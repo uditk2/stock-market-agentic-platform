@@ -247,6 +247,18 @@ Chosen approach:
 - Add `scripts/macos/unblock_unsigned_app.sh` helper script to remove quarantine attribute.
 - Document direct one-liner and local script usage in README.
 
+## 15. Direct DMG Release Asset Publishing (March 2026)
+Objective:
+- Provide a direct macOS DMG download path without GitHub Actions artifact ZIP wrapping.
+
+Design constraints:
+- Keep Build Installers matrix workflow as the build source of truth.
+- Publish a stable latest macOS DMG pointer for users.
+
+Chosen approach:
+- Add a macOS-only post-build step that publishes DMG to release tag `smap-mac-latest`.
+- Use `gh release upload --clobber` to keep asset updated each push.
+
 ## 13. W7 Wizard Opening UX Stabilization (March 2026)
 Objective:
 - Remove first-impression friction where the Broker Provider dropdown appears non-functional while the wizard gate is active.

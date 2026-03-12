@@ -156,6 +156,16 @@
 2. Provide both local-script and curl one-liner recovery paths.
 3. Push and verify CI remains green after script/docs addition.
 
+## Iteration 26 (Direct DMG Release Draft)
+1. Add workflow permissions for release asset upload.
+2. Add macOS-only release publish step using stable tag.
+3. Add direct DMG release URL in README.
+
+## Iteration 27 (Direct DMG Release Refined)
+1. Ensure release publish runs only on push to master/main.
+2. Use deterministic asset naming and `--clobber` behavior.
+3. Validate workflow and share direct release link after successful run.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.

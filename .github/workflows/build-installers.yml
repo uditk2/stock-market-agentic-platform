@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -70,3 +73,18 @@ jobs:
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
           if-no-files-found: warn
+
+      - name: Publish direct mac DMG release asset
+        if: matrix.os == 'macos-latest' && github.event_name == 'push' && (github.ref_name == 'master' || github.ref_name == 'main')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="smap-mac-latest"
+          DMG_PATH="$(ls -1 apps/desktop/release/*.dmg | head -n 1)"
+          ASSET_NAME="SMAP-Desktop-macOS-latest.dmg"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --title "SMAP macOS latest" --notes "Auto-updated latest unsigned macOS DMG."
+          fi
+          gh release upload "$TAG" "$DMG_PATH#$ASSET_NAME" --clobber

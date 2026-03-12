@@ -1,0 +1,8 @@
+{
+  "tasks": [
+    {"id": "R1", "name": "Patch workflow for mac direct release publishing", "depends_on": []},
+    {"id": "R2", "name": "Update README and design artifacts", "depends_on": ["R1"]},
+    {"id": "R3", "name": "Validate workflow syntax", "depends_on": ["R1", "R2"]},
+    {"id": "R4", "name": "Push and verify release asset update", "depends_on": ["R3"]}
+  ]
+}

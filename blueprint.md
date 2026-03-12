@@ -221,6 +221,30 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks/open questions:
   - This remains a workaround until notarization credentials are available.
 
+### Current Slice: Direct DMG Release Publishing
+- Problem statement:
+  - Users want a direct DMG download, but GitHub Actions artifacts are always ZIP-wrapped.
+- Constraints:
+  - Keep existing Build Installers workflow.
+  - Publish from successful macOS build leg only.
+- Design alternatives considered:
+  1. Keep artifact-only distribution: rejected (still ZIP wrapper).
+  2. Manual upload per release: rejected (non-deterministic and slow).
+  3. CI-managed stable latest release tag with clobbered DMG asset: chosen.
+- Chosen architecture:
+  - In `build-installers.yml`, add macOS-only release publish step for push events on master/main.
+  - Release tag: `smap-mac-latest`.
+  - Asset name: `SMAP-Desktop-macOS-latest.dmg`.
+- Interfaces/modules:
+  - `.github/workflows/build-installers.yml`
+  - `README.md`
+- Delivery plan:
+  - Patch workflow permissions + release publish step.
+  - Push and verify release asset update.
+  - Share direct release URL with user.
+- Risks/open questions:
+  - Release tag is mutable by design; audit trail should rely on commit SHA and workflow run links.
+
 ## Risks and Open Questions
 ### Risks
 - External API limits and unstable schemas.

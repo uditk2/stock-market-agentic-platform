@@ -1,0 +1,29 @@
+{
+  "tasks": [
+    {
+      "id": "W5R-T1",
+      "title": "Define packaged service binary resolution policy",
+      "depends_on": []
+    },
+    {
+      "id": "W5R-T2",
+      "title": "Implement resolver module with explicit fallback order",
+      "depends_on": ["W5R-T1"]
+    },
+    {
+      "id": "W5R-T3",
+      "title": "Wire resolver into desktop service startup path",
+      "depends_on": ["W5R-T2"]
+    },
+    {
+      "id": "W5R-T4",
+      "title": "Add resolver and startup-path tests",
+      "depends_on": ["W5R-T3"]
+    },
+    {
+      "id": "W5R-T5",
+      "title": "Run desktop+service test suites and sync docs/issues",
+      "depends_on": ["W5R-T4"]
+    }
+  ]
+}

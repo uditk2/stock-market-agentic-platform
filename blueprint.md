@@ -23,6 +23,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - W2 interface uses Bootstrap 5 component patterns for consistency and operator usability.
 - W5 background-service installation defaults to user scope (`systemd --user`, `LaunchAgent`, user Task Scheduler job).
 - W5 templates accept configurable service command/arguments to support packaged and source runtime variants.
+- Packaged desktop runtime should self-resolve bundled service binary path without manual `SMAP_SERVICE_BIN` setup.
 
 ## Design Alternatives Considered
 1. Monolith (UI + data + scheduling in one process): rejected due to low modularity and restart fragility.
@@ -69,6 +70,8 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Uses Bootstrap cards/nav-tabs/forms/toasts and iconography for standardized UX affordances.
   - W4 adds a PTY-backed terminal panel with profile-gated command execution and explicit advanced mode.
   - W5 adds service-install template renderer + OS helper scripts for background runtime setup.
+  - W5 runtime follow-up adds deterministic service binary resolver for packaged one-click startup.
+  - W5 runtime follow-up status: complete.
 
 ## Delivery Plan
 - Phase 1 (this run): foundation code scaffolding + modular plugin contracts + background scheduler service + desktop shell + CI packaging workflow.

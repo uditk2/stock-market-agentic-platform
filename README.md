@@ -26,6 +26,10 @@ npm install
 npm run dev
 ```
 
+In source mode, desktop will auto-try local service binary (`apps/service/dist`) and then fall back to `python3 -m uvicorn ...` when needed.
+
+In packaged installer mode, desktop auto-resolves bundled service binary from app resources (`resources/service/`) so install-and-run works without manual `SMAP_SERVICE_BIN` setup.
+
 ## Current Sprint Status
 Sprint 1 scaffolding implemented with pluggable interfaces:
 - `LLMAdapter`

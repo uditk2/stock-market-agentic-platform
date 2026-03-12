@@ -206,3 +206,33 @@ Delivered implementation:
   - `scripts/background_service/uninstall_windows_task.ps1`
 - Added unit coverage for template rendering behavior:
   - `apps/desktop/main/service_install_templates.test.js`
+
+## 12. W5 Packaged One-Click Runtime Wiring (March 2026)
+Objective:
+- Ensure installed desktop runtime resolves and launches bundled service binary automatically, without manual environment variable setup.
+
+Design constraints:
+- Preserve explicit operator override via `SMAP_SERVICE_BIN`.
+- Keep source-mode developer workflow unchanged.
+- Keep startup logic modular/testable (single resolver utility).
+
+Chosen approach:
+- Add dedicated service binary resolver in desktop main process.
+- Resolution order:
+  1. `SMAP_SERVICE_BIN` env override
+  2. packaged resource path candidates under Electron `process.resourcesPath/service/`
+  3. repo local dev binary (`apps/service/dist/smap-service[.exe]`) when running unpackaged
+  4. fallback to Python uvicorn command for source-only environments
+- Wire resolver output into startup spawn path with concise diagnostics.
+
+Acceptance target:
+- Packaged installer runtime can start service by launching desktop only (assuming bundled service artifact exists).
+
+Delivered implementation:
+- Added `main/service_runtime.js` resolver module with deterministic precedence:
+  1. `SMAP_SERVICE_BIN` override
+  2. bundled packaged resource binary
+  3. repo local dist binary
+  4. Python uvicorn fallback
+- Wired desktop startup path to resolver output in `main/main.js`.
+- Added unit coverage in `main/service_runtime.test.js`.

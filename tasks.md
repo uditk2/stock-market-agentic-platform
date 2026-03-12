@@ -82,6 +82,18 @@
 3. Ensure helper scripts are idempotent and safe to rerun.
 4. Re-run desktop + service tests before marking W5 complete.
 
+## Iteration 13 (W5 Runtime Wiring Draft)
+1. Define deterministic service binary resolution order for packaged desktop runtime.
+2. Add resolver utility module to avoid hardcoded startup assumptions.
+3. Wire startup path to use resolved bundled binary before source-mode fallback.
+4. Add tests covering packaged and development resolution branches.
+
+## Iteration 14 (W5 Runtime Wiring Refined)
+1. Keep `SMAP_SERVICE_BIN` override highest priority for operator control.
+2. Keep startup fallback to `python3 -m uvicorn ...` only when packaged binary is unavailable.
+3. Surface startup diagnostics in logs for easier support.
+4. Re-run desktop + service tests before closing runtime wiring slice.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -110,6 +122,7 @@
   - systemd user service (Linux)
 - Add install/uninstall helpers for each OS template.
 - Status: complete (template renderer, per-OS install/uninstall helpers, and renderer tests delivered).
+- Follow-up status: packaged one-click runtime binary auto-resolution complete.
 
 6. W6 Real Connector Baseline
 - Add production-grade connector skeletons (with retry/backoff and normalized outputs):

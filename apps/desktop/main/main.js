@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const pty = require('node-pty');
 const { PROFILES, isCommandAllowed } = require('./terminal_profiles');
 const { runMandatoryCliChecks } = require('./cli_checks');
+const { resolveServiceLaunch } = require('./service_runtime');
 
 let mainWindow;
 let serviceProc;
@@ -23,9 +24,17 @@ function createWindow() {
 
 function startService() {
   if (serviceProc) return;
-  const servicePath = process.env.SMAP_SERVICE_BIN || 'python3';
-  const args = process.env.SMAP_SERVICE_BIN ? [] : ['-m', 'uvicorn', 'smap_service.main:app', '--port', '8787'];
-  serviceProc = spawn(servicePath, args, { shell: false });
+  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const launch = resolveServiceLaunch({
+    env: process.env,
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    repoRoot,
+  });
+
+  serviceProc = spawn(launch.command, launch.args, { shell: false });
+  console.log(`[SMAP] service launch mode=${launch.mode} source=${launch.source} command=${launch.command}`);
 
   serviceProc.on('exit', () => {
     serviceProc = null;

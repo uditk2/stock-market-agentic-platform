@@ -60,6 +60,21 @@
         padding: 16px;
         color: #667281;
       }
+      .terminal-output {
+        background: #0b1220;
+        color: #d6e2ff;
+        border-radius: 10px;
+        border: 1px solid #1f2b44;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        line-height: 1.45;
+        min-height: 280px;
+        max-height: 360px;
+        overflow-y: auto;
+        padding: 10px 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
     </style>
   </head>
   <body>
@@ -170,6 +185,48 @@
             </div>
           </div>
         </div>
+
+        <div class="card rounded-4">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+              <h5 class="card-title m-0">Embedded Terminal</h5>
+              <span class="badge text-bg-warning-subtle border">Default: Profile Restricted</span>
+            </div>
+
+            <div class="row g-2 mb-3">
+              <div class="col-md-4">
+                <label class="form-label" for="terminalProfile">Command Profile</label>
+                <select id="terminalProfile" class="form-select"></select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label d-block">Mode</label>
+                <div class="form-check form-switch mt-1">
+                  <input class="form-check-input" type="checkbox" role="switch" id="advancedModeToggle" />
+                  <label class="form-check-label" for="advancedModeToggle">Advanced Mode</label>
+                </div>
+              </div>
+              <div class="col-md-5 d-flex align-items-end justify-content-md-end gap-2">
+                <button class="btn btn-outline-primary" id="terminalStartBtn">Start Terminal</button>
+                <button class="btn btn-outline-danger" id="terminalStopBtn">Stop Terminal</button>
+              </div>
+            </div>
+
+            <div id="terminalProfileHelp" class="small text-secondary mb-2">
+              Choose a profile to allow only safe commands by default.
+            </div>
+            <div id="terminalOutput" class="terminal-output mb-3">[SMAP] terminal idle.</div>
+
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-terminal"></i></span>
+              <input
+                id="terminalInput"
+                class="form-control font-monospace"
+                placeholder="Type command and press Enter (profile restrictions apply unless advanced mode is enabled)"
+              />
+              <button class="btn btn-primary" id="terminalSendBtn">Send</button>
+            </div>
+          </div>
+        </div>
       </div>
     </main>
 
@@ -186,8 +243,10 @@
     <script>
       const API_BASE = "http://127.0.0.1:8787";
       const hasBridge = Boolean(window.smapBridge && window.smapBridge.serviceStatus);
+      const hasTerminalBridge = Boolean(window.smapBridge && window.smapBridge.terminalStart);
       const toast = new bootstrap.Toast(document.getElementById("toast"), { delay: 2200 });
       let currentDetail = null;
+      let terminalStarted = false;
 
       function showToast(text) {
         document.getElementById("toastText").innerText = text;
@@ -337,6 +396,93 @@
         }
       }
 
+      function appendTerminalOutput(chunk) {
+        const output = document.getElementById("terminalOutput");
+        output.textContent += chunk;
+        output.scrollTop = output.scrollHeight;
+      }
+
+      async function loadTerminalProfiles() {
+        if (!hasTerminalBridge) {
+          return;
+        }
+        const payload = await window.smapBridge.terminalProfiles();
+        const select = document.getElementById("terminalProfile");
+        select.innerHTML = "";
+        payload.items.forEach((item) => {
+          const option = document.createElement("option");
+          option.value = item.key;
+          option.textContent = item.key;
+          option.dataset.description = item.description;
+          select.appendChild(option);
+        });
+        const updateHelp = () => {
+          const current = payload.items.find((item) => item.key === select.value);
+          document.getElementById("terminalProfileHelp").innerText = current
+            ? current.description
+            : "Choose a profile to allow only safe commands by default.";
+        };
+        select.addEventListener("change", updateHelp);
+        updateHelp();
+      }
+
+      async function startTerminal() {
+        if (!hasTerminalBridge) {
+          showToast("Terminal is available only inside Electron.");
+          return;
+        }
+        const profile = document.getElementById("terminalProfile").value || "ops_status";
+        const advancedMode = Boolean(document.getElementById("advancedModeToggle").checked);
+        const result = await window.smapBridge.terminalStart({
+          profile,
+          advancedMode,
+          cols: 120,
+          rows: 32,
+        });
+        if (!result.ok) {
+          showToast("Terminal start failed.");
+          return;
+        }
+        terminalStarted = true;
+        document.getElementById("terminalOutput").textContent = "";
+        showToast(`Terminal started (${advancedMode ? "advanced" : profile}).`);
+      }
+
+      async function stopTerminal() {
+        if (!hasTerminalBridge) {
+          return;
+        }
+        await window.smapBridge.terminalStop();
+        terminalStarted = false;
+        appendTerminalOutput("\n[SMAP] terminal stopped.\n");
+        showToast("Terminal stopped.");
+      }
+
+      async function sendTerminalCommand() {
+        if (!hasTerminalBridge) {
+          showToast("Terminal is available only inside Electron.");
+          return;
+        }
+        const input = document.getElementById("terminalInput");
+        const command = input.value.trim();
+        if (!command) {
+          return;
+        }
+        if (!terminalStarted) {
+          await startTerminal();
+        }
+        appendTerminalOutput(`\n$ ${command}\n`);
+        const result = await window.smapBridge.terminalWrite({ command });
+        if (!result.ok) {
+          if (result.error === "command_not_allowed") {
+            showToast("Blocked by profile policy. Enable advanced mode if intended.");
+          } else {
+            showToast(`Terminal error: ${result.error}`);
+          }
+        }
+        input.value = "";
+      }
+
       document.getElementById("refreshServiceBtn").addEventListener("click", refreshServiceStatus);
       document.getElementById("startServiceBtn").addEventListener("click", async () => {
         if (!hasBridge) {
@@ -370,11 +516,36 @@
           loadRecommendations();
         }
       });
+      document.getElementById("terminalStartBtn").addEventListener("click", startTerminal);
+      document.getElementById("terminalStopBtn").addEventListener("click", stopTerminal);
+      document.getElementById("terminalSendBtn").addEventListener("click", sendTerminalCommand);
+      document.getElementById("terminalInput").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          sendTerminalCommand();
+        }
+      });
+      if (hasTerminalBridge) {
+        window.smapBridge.onTerminalOutput((chunk) => appendTerminalOutput(chunk));
+        window.smapBridge.onTerminalExit(() => {
+          terminalStarted = false;
+          appendTerminalOutput("\n[SMAP] terminal exited.\n");
+        });
+      }
 
       async function boot() {
         if (!hasBridge) {
           document.getElementById("startServiceBtn").disabled = true;
           document.getElementById("stopServiceBtn").disabled = true;
+        }
+        if (!hasTerminalBridge) {
+          document.getElementById("terminalStartBtn").disabled = true;
+          document.getElementById("terminalStopBtn").disabled = true;
+          document.getElementById("terminalSendBtn").disabled = true;
+          document.getElementById("terminalInput").disabled = true;
+          document.getElementById("advancedModeToggle").disabled = true;
+          document.getElementById("terminalProfile").innerHTML = "<option>preview-only</option>";
+          document.getElementById("terminalProfileHelp").innerText =
+            "Terminal control is available only in Electron runtime.";
         }
         try {
           await refreshServiceStatus();
@@ -390,6 +561,11 @@
           await loadRecommendations();
         } catch (error) {
           showToast(`Recommendation warning: ${error.message}`);
+        }
+        try {
+          await loadTerminalProfiles();
+        } catch (error) {
+          showToast(`Terminal warning: ${error.message}`);
         }
         renderDetail();
         showToast("Workspace ready.");

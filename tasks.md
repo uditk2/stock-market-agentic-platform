@@ -45,6 +45,19 @@
 3. Add a dedicated observability route for richer run-summary payloads.
 4. Require green suite before marking W6 complete.
 
+## Iteration 7 (W4 Terminal Draft)
+1. Add a PTY-backed terminal runtime in desktop main process.
+2. Expose minimal IPC bridge for session start/write/resize/stop and output events.
+3. Add safe command profiles with strict allowlists.
+4. Add explicit advanced mode to permit unrestricted commands.
+5. Add renderer terminal panel for profile selection, output, and input.
+
+## Iteration 8 (W4 Terminal Refined)
+1. Keep default mode profile-restricted; advanced mode must be explicit and visible.
+2. Ensure terminal lifecycle cleanup on app close and session restart.
+3. Preserve desktop recommendations UX while adding terminal as a separate section.
+4. Add focused tests for command gating and profile behavior where practical.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -63,6 +76,7 @@
 
 4. W4 Embedded Terminal Runtime
 - Add PTY-backed terminal panel with safe command profiles and advanced mode toggle.
+- Status: complete (main-process PTY manager, preload IPC bridge, renderer terminal panel, command policy tests).
 
 5. W5 Background Service Installation Layer
 - Add OS-specific background mode templates:

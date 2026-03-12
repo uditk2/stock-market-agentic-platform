@@ -65,12 +65,16 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - `preload/*` (safe IPC bridge)
 - `renderer/*` (wizard, terminal view, scheduler view, recommendation workspace)
   - Uses Bootstrap cards/nav-tabs/forms/toasts and iconography for standardized UX affordances.
+  - W4 adds a PTY-backed terminal panel with profile-gated command execution and explicit advanced mode.
 
 ## Delivery Plan
 - Phase 1 (this run): foundation code scaffolding + modular plugin contracts + background scheduler service + desktop shell + CI packaging workflow.
 - Phase 2: W2 UX/provider management implementation, then real data source integrations and signal engines.
   - Slice 2A complete: W2 provider UX + credential persistence + recommendation workspace.
   - Slice 2B complete: W6 connector baseline (Kotak/NewsAPI/RSS/NSE adapters + diagnostics + attribution observability).
+- Phase 2.5:
+  - W4 embedded terminal runtime complete (PTY session manager, profile gating, advanced mode toggle, renderer terminal panel).
+  - W3 wizard enforcement still pending.
 - Phase 3: recommendation lifecycle, monitoring, backtest, supervised learning.
 
 ## Risks and Open Questions

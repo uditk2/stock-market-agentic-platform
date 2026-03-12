@@ -11,3 +11,12 @@ Implement mandatory AI CLI setup checks and PTY-backed terminal integration.
 ## Acceptance
 - Wizard blocks completion until mandatory checks pass
 - Terminal runs profile commands and streams output
+
+## Progress
+- W4 terminal runtime delivered:
+  - PTY-backed session manager in desktop main process
+  - Preload IPC bridge for start/write/resize/stop + output events
+  - Profile-gated safe command mode with explicit advanced mode toggle
+  - Renderer terminal panel integrated into desktop workspace
+  - Desktop command-policy tests added and passing
+- W3 wizard enforcement still pending.

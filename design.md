@@ -107,3 +107,43 @@ Slice 3 observability and attribution:
 - `/connectors/diagnostics` now includes latest per-job run snapshots and scheduler failure counters.
 - `/connectors/observability` added for recent run feed + aggregate summary.
 - Integration smoke coverage added for scheduler-path run attribution and observability payload shape.
+
+## 9. W4 Embedded Terminal Runtime (March 2026)
+Objective:
+- Provide an in-app operator terminal without collapsing security boundaries.
+
+Design constraints:
+- Renderer cannot execute shell directly; command execution stays in main process.
+- Terminal must support safe command profiles by default.
+- Advanced mode must be explicit and user-triggered.
+
+Chosen approach:
+- Add a main-process PTY session manager that owns lifecycle for one active terminal session.
+- Expose narrow IPC contract through preload:
+  - start session (profile + advanced mode flag)
+  - write input
+  - resize terminal
+  - stop session
+  - subscribe to output and exit events
+- Renderer adds a terminal panel with:
+  - profile selector (safe defaults)
+  - advanced-mode toggle
+  - output console viewport
+  - input prompt and send action
+
+Safe profiles (W4 baseline):
+- `ops_status`: readonly diagnostics (`pwd`, `ls`, `git status`, service health curls)
+- `service_logs`: journalctl/service-tail helpers
+- `repo_dev`: scoped repo commands (no destructive git operations)
+
+Guardrails:
+- Advanced mode is opt-in and visually explicit.
+- Profile mode validates command allowlist before execution.
+- Session teardown on app exit/window close.
+
+Delivered implementation:
+- Electron main-process PTY session manager added with IPC handlers for start/write/resize/stop.
+- Safe command profiles implemented (`ops_status`, `service_logs`, `repo_dev`) with metacharacter blocking.
+- Explicit advanced-mode toggle added to permit unrestricted command entry when intentionally enabled.
+- Preload bridge now exposes terminal APIs and output/exit subscriptions.
+- Renderer now includes an embedded terminal panel with profile selection, mode toggle, output console, and command input.

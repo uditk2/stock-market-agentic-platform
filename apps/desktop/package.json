@@ -5,6 +5,7 @@
   "main": "main/main.js",
   "scripts": {
     "dev": "electron .",
+    "test": "node --test main/*.test.js",
     "build": "electron-builder --dir",
     "dist": "electron-builder"
   },
@@ -51,5 +52,8 @@
     }
   },
   "description": "SMAP Desktop shell",
-  "author": "Udit Khandelwal"
+  "author": "Udit Khandelwal",
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  }
 }

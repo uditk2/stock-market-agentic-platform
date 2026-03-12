@@ -46,3 +46,9 @@ Implement W2 provider/feed UX + credential persistence and W6 connector baseline
   - Bootstrap 5 + Bootstrap Icons based interface refresh
   - standardized cards/forms/tabs/toasts patterns
   - improved recommendation list/detail interaction and validation feedback
+- W6 slice 3 delivered:
+  - job history now records connector attribution + duration + metadata context
+  - `/jobs/history` returns connector-attributed run details
+  - diagnostics enriched with latest run snapshots and scheduler failure counters
+  - new `/connectors/observability` endpoint with aggregate + recent run payloads
+  - integration smoke test added for scheduler-path attribution + diagnostics

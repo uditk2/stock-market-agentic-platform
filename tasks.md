@@ -33,6 +33,18 @@
 4. Wire market connector into scheduler ingestion and expose connector identity in health metadata.
 5. Add focused connector baseline tests and keep suite green before moving to connector hardening.
 
+## Iteration 5 (W6 Slice 3 Draft)
+1. Extend run-history persistence with connector attribution and latency metrics.
+2. Propagate attribution metadata from ingestion jobs through scheduler wrappers.
+3. Enrich diagnostics with latest connector run snapshots and failure counts.
+4. Add scheduler-path integration smoke tests for diagnostics + observability outputs.
+
+## Iteration 6 (W6 Slice 3 Refined)
+1. Keep storage migration backward-compatible for existing SQLite files.
+2. Ensure `/jobs/history` remains stable while adding `connector`, `duration_ms`, and `attribution`.
+3. Add a dedicated observability route for richer run-summary payloads.
+4. Require green suite before marking W6 complete.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -67,7 +79,7 @@
 - Slice status:
   - Slice 1 complete: connector scaffolds + retry/backoff + scheduler wiring + baseline tests.
   - Slice 2 complete: provider-specific credential validation + connector diagnostics telemetry + API validation errors.
-  - Slice 3 pending: richer connector observability/run-history attribution and integration smoke coverage.
+  - Slice 3 complete: richer connector observability/run-history attribution and integration smoke coverage.
 
 7. W7 CI Packaging Hardening
 - Extend GitHub Actions to assemble service+desktop outputs per OS and publish versioned artifacts.

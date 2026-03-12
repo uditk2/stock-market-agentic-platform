@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 from dataclasses import dataclass
 from datetime import datetime, UTC
 from pathlib import Path
 from threading import Lock
+from typing import Any
 
 
 @dataclass
@@ -15,6 +17,9 @@ class JobRun:
     status: str
     records_processed: int
     error: str | None = None
+    connector: str | None = None
+    duration_ms: int = 0
+    attribution: dict[str, Any] | None = None
 
 
 class SQLiteJobHistoryStore:
@@ -35,8 +40,11 @@ class SQLiteJobHistoryStore:
                     finished_at,
                     status,
                     records_processed,
-                    error
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    error,
+                    connector,
+                    duration_ms,
+                    attribution_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run.job_name,
@@ -45,6 +53,9 @@ class SQLiteJobHistoryStore:
                     run.status,
                     run.records_processed,
                     run.error,
+                    run.connector,
+                    run.duration_ms,
+                    json.dumps(run.attribution, sort_keys=True) if run.attribution is not None else None,
                 ),
             )
             if self._history_retention_days is not None and self._history_retention_days > 0:
@@ -67,7 +78,10 @@ class SQLiteJobHistoryStore:
                     finished_at,
                     status,
                     records_processed,
-                    error
+                    error,
+                    connector,
+                    duration_ms,
+                    attribution_json
                 FROM job_runs
                 ORDER BY finished_at DESC
                 LIMIT ?
@@ -82,6 +96,9 @@ class SQLiteJobHistoryStore:
                 status=row[3],
                 records_processed=row[4],
                 error=row[5],
+                connector=row[6],
+                duration_ms=row[7] or 0,
+                attribution=json.loads(row[8]) if row[8] else None,
             )
             for row in rows
         ]
@@ -127,10 +144,16 @@ class SQLiteJobHistoryStore:
                     finished_at TEXT NOT NULL,
                     status TEXT NOT NULL,
                     records_processed INTEGER NOT NULL,
-                    error TEXT
+                    error TEXT,
+                    connector TEXT,
+                    duration_ms INTEGER NOT NULL DEFAULT 0,
+                    attribution_json TEXT
                 )
                 """
             )
+            self._ensure_column(conn, "job_runs", "connector", "TEXT")
+            self._ensure_column(conn, "job_runs", "duration_ms", "INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "job_runs", "attribution_json", "TEXT")
             conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_job_runs_finished_at
@@ -147,6 +170,12 @@ class SQLiteJobHistoryStore:
                 """
             )
             conn.commit()
+
+    def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, ddl_suffix: str) -> None:
+        existing = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        names = {row[1] for row in existing}
+        if column not in names:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_suffix}")
 
 
 def now_utc() -> datetime:

@@ -85,7 +85,7 @@ W2 UX polish delivered:
 - Bootstrap Icons for consistent action/status affordances.
 - Recommendations workflow improved with active list state, keyboard-search behavior, and clearer detail hierarchy.
 
-## 8. W6 Connector Baseline (Slice 1, March 2026)
+## 8. W6 Connector Baseline (Slices 1-3, March 2026)
 Implemented baseline connector layer with retry/backoff and normalized output contracts:
 - Kotak market feed client (credential-aware, graceful fallback when missing token)
 - NewsAPI adapter (API-key driven fetch + normalization)
@@ -95,3 +95,15 @@ Implemented baseline connector layer with retry/backoff and normalized output co
 Scheduler wiring updates:
 - Market ingestion now uses connector client output instead of pure scaffold ticks.
 - Health metadata now includes active market connector identifier.
+
+Slice 2 hardening:
+- Provider-specific required-field validation for Kotak/Upstox/Kite credentials.
+- Structured API error payloads for missing credential fields.
+- Connector diagnostics route for market/news readiness snapshots.
+
+Slice 3 observability and attribution:
+- Job history rows now persist connector attribution, execution duration, and run context metadata.
+- `/jobs/history` now exposes connector-level run attribution for operational traceability.
+- `/connectors/diagnostics` now includes latest per-job run snapshots and scheduler failure counters.
+- `/connectors/observability` added for recent run feed + aggregate summary.
+- Integration smoke coverage added for scheduler-path run attribution and observability payload shape.

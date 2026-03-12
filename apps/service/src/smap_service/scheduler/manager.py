@@ -78,14 +78,20 @@ class SchedulerManager:
         error = None
         status = "success"
         records = 0
+        connector = None
+        attribution = None
         try:
             result = fn()
             records = result.records_processed
+            connector = result.connector
+            attribution = result.attribution
         except Exception as exc:  # pragma: no cover - defensive runtime wrapper
             status = "failed"
             error = str(exc)
+            attribution = {"exception_type": type(exc).__name__}
             logger.exception("job failed: %s", job_name)
         finished = now_utc()
+        duration_ms = int((finished - started).total_seconds() * 1000)
         self._history.add(
             JobRun(
                 job_name=job_name,
@@ -94,6 +100,9 @@ class SchedulerManager:
                 status=status,
                 records_processed=records,
                 error=error,
+                connector=connector,
+                duration_ms=duration_ms,
+                attribution=attribution,
             )
         )
 

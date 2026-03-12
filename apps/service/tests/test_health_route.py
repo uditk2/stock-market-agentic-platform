@@ -38,6 +38,14 @@ def test_recommendations_and_provider_routes_shape() -> None:
     diag_payload = diagnostics.json()
     assert "market" in diag_payload
     assert "news" in diag_payload
+    assert "scheduler_observability" in diag_payload
+    assert "failure_count" in diag_payload["scheduler_observability"]
+
+    observability = client.get("/connectors/observability")
+    assert observability.status_code == 200
+    observability_payload = observability.json()
+    assert "summary" in observability_payload
+    assert "recent" in observability_payload
 
 
 def test_provider_selection_validation_rejects_missing_required_fields() -> None:

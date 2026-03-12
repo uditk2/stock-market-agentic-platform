@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from smap_service.core.interfaces import MarketFeedClient
 from smap_service.core.registry import PluginRegistry
@@ -15,6 +16,8 @@ class JobResult:
     status: str
     records_processed: int
     error: str | None = None
+    connector: str | None = None
+    attribution: dict[str, Any] | None = None
 
 
 def ingest_market_bars(market_client: MarketFeedClient) -> JobResult:
@@ -29,22 +32,42 @@ def ingest_market_bars(market_client: MarketFeedClient) -> JobResult:
         job_name="ingest_market_bars",
         status="success",
         records_processed=len(bars),
+        connector=market_client.name,
+        attribution={"symbols_requested": len(symbols)},
     )
 
 
 def ingest_news(registry: PluginRegistry, enabled: list[str]) -> JobResult:
     count = 0
+    provider_counts: dict[str, int] = {}
     for provider_name in enabled:
         provider = registry.news_providers.get(provider_name)
         if not provider:
             continue
-        count += len(provider.fetch())
+        fetched = len(provider.fetch())
+        count += fetched
+        provider_counts[provider_name] = fetched
     logger.info("news ingestion tick providers=%s records=%s", enabled, count)
-    return JobResult(job_name="ingest_news", status="success", records_processed=count)
+    return JobResult(
+        job_name="ingest_news",
+        status="success",
+        records_processed=count,
+        connector="news_registry",
+        attribution={
+            "providers_enabled": enabled,
+            "provider_counts": provider_counts,
+        },
+    )
 
 
 def ingest_announcements(registry: PluginRegistry) -> JobResult:
     provider = registry.news_providers.get("nse_announcements")
     count = len(provider.fetch()) if provider else 0
     logger.info("announcement ingestion tick records=%s", count)
-    return JobResult(job_name="ingest_announcements", status="success", records_processed=count)
+    return JobResult(
+        job_name="ingest_announcements",
+        status="success",
+        records_processed=count,
+        connector="nse_announcements",
+        attribution={"provider_available": bool(provider)},
+    )

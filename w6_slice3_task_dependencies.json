@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {"id": "S3-1", "name": "Add attribution fields to job history storage/model", "depends_on": []},
+    {"id": "S3-2", "name": "Populate attribution in ingestion + scheduler record wrapper", "depends_on": ["S3-1"]},
+    {"id": "S3-3", "name": "Expose enriched jobs/diagnostics observability payloads", "depends_on": ["S3-2"]},
+    {"id": "S3-4", "name": "Add integration smoke tests for diagnostics + scheduler path", "depends_on": ["S3-3"]},
+    {"id": "S3-5", "name": "Run test suite and finalize docs/issue sync", "depends_on": ["S3-4"]}
+  ]
+}

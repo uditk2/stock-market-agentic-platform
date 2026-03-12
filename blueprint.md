@@ -70,7 +70,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Phase 1 (this run): foundation code scaffolding + modular plugin contracts + background scheduler service + desktop shell + CI packaging workflow.
 - Phase 2: W2 UX/provider management implementation, then real data source integrations and signal engines.
   - Slice 2A complete: W2 provider UX + credential persistence + recommendation workspace.
-  - Slice 2B in progress: W6 connector baseline (Kotak/NewsAPI/RSS/NSE adapters).
+  - Slice 2B complete: W6 connector baseline (Kotak/NewsAPI/RSS/NSE adapters + diagnostics + attribution observability).
 - Phase 3: recommendation lifecycle, monitoring, backtest, supervised learning.
 
 ## Risks and Open Questions
@@ -78,6 +78,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - External API limits and unstable schemas.
 - Packaging complexity across three OS targets.
 - AI CLI redistribution/auth flows may vary by provider version.
+- Connector observability payloads can drift if schema discipline is not maintained across future job types.
 
 ### Open Questions (queued for next user window)
 - OQ1: Preferred GitHub repo visibility/name if creating a new remote is required.

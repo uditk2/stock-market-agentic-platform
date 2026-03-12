@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from smap_service.app_runtime import AppRuntime
+from smap_service.db.job_history import JobRun
 from smap_service.db.provider_credentials import (
     REQUIRED_CREDENTIAL_FIELDS,
     SUPPORTED_BROKER_PROVIDERS,
@@ -49,6 +50,9 @@ def build_router(runtime: AppRuntime) -> APIRouter:
                     "status": row.status,
                     "records_processed": row.records_processed,
                     "error": row.error,
+                    "connector": row.connector,
+                    "duration_ms": row.duration_ms,
+                    "attribution": row.attribution or {},
                 }
                 for row in rows
             ]
@@ -102,6 +106,7 @@ def build_router(runtime: AppRuntime) -> APIRouter:
 
     @router.get("/connectors/diagnostics")
     def connectors_diagnostics() -> dict[str, Any]:
+        history_rows = runtime.scheduler.runtime().history.recent(limit=100)
         selection = runtime.credentials.get_selection()
         selected = selection.provider
         selected_credentials = runtime.credentials.get_credentials(selected) if selected else {}
@@ -112,18 +117,45 @@ def build_router(runtime: AppRuntime) -> APIRouter:
         )
         rss_provider = runtime.registry.news_providers.get("rss")
         rss_feed_count = len(getattr(rss_provider, "_feeds", [])) if rss_provider else 0
+        market_last = _latest_for_job(history_rows, "ingest_market_bars")
+        news_last = _latest_for_job(history_rows, "ingest_news")
+        announcements_last = _latest_for_job(history_rows, "ingest_announcements")
         return {
             "market": {
                 "active_connector": runtime.market_client_name,
                 "selected_provider": selected,
                 "has_credentials": selection.has_credentials,
                 "missing_required_fields": missing,
+                "last_run": _run_to_summary(market_last),
             },
             "news": {
                 "newsapi_key_configured": bool(os.getenv("SMAP_NEWSAPI_KEY")),
                 "rss_feed_count": rss_feed_count,
                 "announcements_adapter_enabled": "nse_announcements" in runtime.registry.news_providers,
+                "last_news_run": _run_to_summary(news_last),
+                "last_announcements_run": _run_to_summary(announcements_last),
             },
+            "scheduler_observability": _build_observability(history_rows),
+        }
+
+    @router.get("/connectors/observability")
+    def connectors_observability(limit: int = 100) -> dict[str, Any]:
+        rows = runtime.scheduler.runtime().history.recent(limit=limit)
+        return {
+            "limit": limit,
+            "summary": _build_observability(rows),
+            "recent": [
+                {
+                    "job_name": row.job_name,
+                    "status": row.status,
+                    "connector": row.connector,
+                    "records_processed": row.records_processed,
+                    "duration_ms": row.duration_ms,
+                    "finished_at": row.finished_at.isoformat(),
+                    "attribution": row.attribution or {},
+                }
+                for row in rows
+            ],
         }
 
     @router.get("/recommendations")
@@ -153,3 +185,45 @@ def build_router(runtime: AppRuntime) -> APIRouter:
         return payload
 
     return router
+
+
+def _latest_for_job(rows: list[JobRun], job_name: str) -> JobRun | None:
+    for row in rows:
+        if row.job_name == job_name:
+            return row
+    return None
+
+
+def _run_to_summary(row: JobRun | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    return {
+        "status": row.status,
+        "finished_at": row.finished_at.isoformat(),
+        "records_processed": row.records_processed,
+        "duration_ms": row.duration_ms,
+        "connector": row.connector,
+        "attribution": row.attribution or {},
+        "error": row.error,
+    }
+
+
+def _build_observability(rows: list[JobRun]) -> dict[str, Any]:
+    latest_by_job: dict[str, dict[str, Any]] = {}
+    failures = 0
+    for row in rows:
+        if row.status != "success":
+            failures += 1
+        if row.job_name not in latest_by_job:
+            latest_by_job[row.job_name] = {
+                "status": row.status,
+                "finished_at": row.finished_at.isoformat(),
+                "duration_ms": row.duration_ms,
+                "connector": row.connector,
+                "records_processed": row.records_processed,
+            }
+    return {
+        "total_runs_considered": len(rows),
+        "failure_count": failures,
+        "latest_by_job": latest_by_job,
+    }

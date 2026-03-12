@@ -366,3 +366,22 @@ Chosen approach:
 - Keep build generation unchanged.
 - Narrow GitHub Actions upload globs to final installer/update metadata files under `apps/desktop/release`.
 - Exclude bulky intermediate/unpacked output trees from artifact uploads.
+
+## 16. W8 First-Open Progressive Onboarding (March 2026)
+Objective:
+- Replace hard-block startup with a staged first-open flow that is easier to follow:
+  1) install/detect Codex or Claude
+  2) click Next to run mandatory checks
+  3) enter broker credentials
+  4) transition to Home screen
+
+Functional behavior:
+- First open renders only the setup wizard section.
+- Install action runs in the background from Electron main process (no manual terminal command required).
+- `Next` from setup runs mandatory CLI checks and advances to broker stage when passing.
+- Broker save completes onboarding and navigates user to full home workspace.
+
+Constraints:
+- Keep existing service/provider APIs unchanged.
+- Keep non-Electron preview fallback messaging.
+- Preserve secure command boundaries and existing CLI scope logic.

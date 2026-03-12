@@ -232,3 +232,15 @@
 ## Deferred Questions (queued in awaiting registry)
 - DQ1: Final default RSS feed list.
 - DQ2: Minimum supported OS versions for installer policy.
+
+## Iteration 30 (First-Open Progressive Onboarding Draft)
+1. Implement first-open staged visibility: setup only, then broker, then home.
+2. Replace terminal-driven wizard install with behind-the-scenes main-process installer action.
+3. Rewire `Next` flow: CLI checks -> broker setup.
+4. Auto-transition to home on successful broker save.
+
+## Iteration 31 (First-Open Progressive Onboarding Refined)
+1. Keep Codex/Claude parity in install and detection paths.
+2. Keep provider-loading retry to avoid empty-provider race on broker stage.
+3. Preserve existing service controls and terminal for home stage only.
+4. Add targeted tests for installer execution helper and keep full desktop suite green.

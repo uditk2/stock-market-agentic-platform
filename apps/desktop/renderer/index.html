@@ -86,28 +86,18 @@
   <body>
     <main class="container-fluid py-3 app-shell">
       <div class="d-flex flex-column gap-3">
-        <div class="card rounded-4 border-warning-subtle">
+        <div id="wizardCard" class="card rounded-4 border-warning-subtle">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
               <h5 class="card-title m-0">Setup Wizard</h5>
               <span id="wizardBadge" class="badge text-bg-warning">Pending</span>
             </div>
             <p class="small text-secondary mb-2">
-              Mandatory checks before workspace unlock: Codex CLI + Claude CLI readiness and background service installation.
+              First-time setup: install and detect Codex/Claude CLI, then continue to broker setup.
             </p>
             <div id="wizardChecks" class="small mb-3 text-secondary">No checks run yet.</div>
             <div id="wizardServiceStatus" class="small mb-3 text-secondary">
-              Background service status: unknown.
-            </div>
-            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-              <button class="btn btn-outline-primary btn-sm" id="wizardInstallServiceBtn">
-                <i class="bi bi-hdd-network"></i>
-                Install Background Service
-              </button>
-              <button class="btn btn-outline-secondary btn-sm" id="wizardRefreshServiceBtn">
-                <i class="bi bi-arrow-repeat"></i>
-                Refresh Service Check
-              </button>
+              Background service status: will be checked after CLI detection.
             </div>
             <div class="row g-2 mb-3">
               <div class="col-md-4">
@@ -136,12 +126,12 @@
               Choose your subscription and target CLI, then run install from wizard.
             </div>
             <div id="wizardStepText" class="small text-secondary mb-2">
-              Step 1: Choose subscription and install CLI.
+              Step 1: Install and detect CLI.
             </div>
             <div class="d-flex flex-wrap gap-2">
-              <button class="btn btn-warning" id="wizardRunBtn">
-                <i class="bi bi-shield-check"></i>
-                Run Mandatory Checks
+              <button class="btn btn-outline-secondary" id="wizardDetectBtn">
+                <i class="bi bi-search"></i>
+                Detect Installed CLIs
               </button>
               <button class="btn btn-primary" id="wizardNextBtn">
                 Next
@@ -150,7 +140,7 @@
           </div>
         </div>
 
-        <nav class="navbar rounded-4 glass-nav px-3 py-2">
+        <nav id="appNav" class="navbar rounded-4 glass-nav px-3 py-2">
           <div class="d-flex align-items-center gap-2">
             <i class="bi bi-graph-up-arrow text-primary"></i>
             <span class="fw-semibold">SMAP Desktop</span>
@@ -167,8 +157,8 @@
           </div>
         </nav>
 
-        <div class="row g-3">
-          <div class="col-lg-4">
+        <div id="workspaceRow" class="row g-3">
+          <div id="brokerColumn" class="col-lg-4">
             <div class="card h-100 rounded-4">
               <div class="card-body">
                 <h5 class="card-title mb-3">Broker Configuration</h5>
@@ -200,7 +190,7 @@
             </div>
           </div>
 
-          <div class="col-lg-8">
+          <div id="recommendationsColumn" class="col-lg-8">
             <div class="card rounded-4">
               <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
@@ -256,7 +246,7 @@
           </div>
         </div>
 
-        <div class="card rounded-4">
+        <div id="terminalCard" class="card rounded-4">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
               <h5 class="card-title m-0">Embedded Terminal</h5>
@@ -321,19 +311,20 @@
       let currentDetail = null;
       let terminalStarted = false;
       let workspaceLocked = true;
-      let wizardStep = 1;
+      let onboardingStage = "setup";
       let lastWizardPayload = null;
       let lastBackgroundReady = false;
+      let providerConfigured = false;
       const lockBypassControlIds = new Set([
-        "wizardRunBtn",
+        "wizardDetectBtn",
         "wizardNextBtn",
-        "wizardInstallServiceBtn",
-        "wizardRefreshServiceBtn",
         "wizardSubscriptionSelect",
         "wizardCliTargetSelect",
         "wizardInstallCliBtn",
         "providerSelect",
         "loadProviderBtn",
+        "providerCreds",
+        "saveProviderBtn",
         "refreshServiceBtn",
         "startServiceBtn",
       ]);
@@ -401,34 +392,49 @@
 
       function updateWizardStepUi() {
         const labels = {
-          1: "Step 1: Choose subscription and install CLI.",
-          2: "Step 2: Run mandatory CLI checks.",
-          3: "Step 3: Install background service.",
-          4: "Step 4: Load provider list and configure credentials.",
-          5: "Step complete: Workspace ready.",
+          setup: "Step 1: Install and detect CLI.",
+          broker: "Step 2: Enter broker details.",
+          home: "Step complete: Workspace ready.",
         };
-        document.getElementById("wizardStepText").innerText = labels[wizardStep] || labels[1];
+        document.getElementById("wizardStepText").innerText = labels[onboardingStage] || labels.setup;
       }
 
-      function recomputeWizardStep() {
-        const subscription = document.getElementById("wizardSubscriptionSelect").value;
-        const requiredCliIds = getRequiredCliIdsForSubscription(subscription);
-        if (!requiredCliIds.length) {
-          wizardStep = 1;
-          updateWizardStepUi();
-          return;
+      function setOnboardingStage(stage) {
+        onboardingStage = stage;
+        const wizardCard = document.getElementById("wizardCard");
+        const appNav = document.getElementById("appNav");
+        const workspaceRow = document.getElementById("workspaceRow");
+        const brokerColumn = document.getElementById("brokerColumn");
+        const recommendationsColumn = document.getElementById("recommendationsColumn");
+        const terminalCard = document.getElementById("terminalCard");
+        if (stage === "setup") {
+          wizardCard.classList.remove("d-none");
+          appNav.classList.add("d-none");
+          workspaceRow.classList.add("d-none");
+          terminalCard.classList.add("d-none");
+          recommendationsColumn.classList.remove("d-none");
+          brokerColumn.classList.remove("col-lg-12");
+          brokerColumn.classList.add("col-lg-4");
+          setWorkspaceLocked(true);
+        } else if (stage === "broker") {
+          wizardCard.classList.remove("d-none");
+          appNav.classList.add("d-none");
+          workspaceRow.classList.remove("d-none");
+          recommendationsColumn.classList.add("d-none");
+          brokerColumn.classList.remove("col-lg-4");
+          brokerColumn.classList.add("col-lg-12");
+          terminalCard.classList.add("d-none");
+          setWorkspaceLocked(true);
+        } else {
+          wizardCard.classList.add("d-none");
+          appNav.classList.remove("d-none");
+          workspaceRow.classList.remove("d-none");
+          recommendationsColumn.classList.remove("d-none");
+          brokerColumn.classList.remove("col-lg-12");
+          brokerColumn.classList.add("col-lg-4");
+          terminalCard.classList.remove("d-none");
+          setWorkspaceLocked(false);
         }
-        if (!lastWizardPayload || !lastWizardPayload.ok) {
-          wizardStep = 2;
-          updateWizardStepUi();
-          return;
-        }
-        if (!lastBackgroundReady) {
-          wizardStep = 3;
-          updateWizardStepUi();
-          return;
-        }
-        wizardStep = providerSelectionReady() ? 5 : 4;
         updateWizardStepUi();
       }
 
@@ -439,7 +445,7 @@
           return false;
         }
         const pass = Boolean(status.installed);
-        const className = pass ? "wizard-pass" : "wizard-fail";
+        const className = pass ? "wizard-pass" : "text-secondary";
         container.innerHTML = `<span class=\"${className}\">Background service (${status.manager}): installed=${status.installed} running=${status.running}</span>`;
         return pass;
       }
@@ -461,14 +467,12 @@
           })
           .join("");
         container.innerHTML = rows;
-        if (payload.ok && backgroundReady) {
+        if (payload.ok) {
           badge.className = "badge text-bg-success";
-          badge.innerText = "Ready";
-          setWorkspaceLocked(false);
+          badge.innerText = "CLI Ready";
         } else {
           badge.className = "badge text-bg-danger";
-          badge.innerText = "Blocked";
-          setWorkspaceLocked(true);
+          badge.innerText = "CLI Missing";
         }
       }
 
@@ -508,7 +512,6 @@
           });
           lastWizardPayload = { ok: false };
           lastBackgroundReady = false;
-          recomputeWizardStep();
           showToast("Choose your subscription first, then install required CLI.");
           return;
         }
@@ -518,28 +521,38 @@
         lastWizardPayload = payload;
         lastBackgroundReady = backgroundReady;
         renderWizardChecks(payload, backgroundReady);
-        if (payload.ok && backgroundReady && !providerSelectionReady()) {
+        if (payload.ok && !providerSelectionReady()) {
           await loadProvidersWithRetry(4, 1000);
         }
-        recomputeWizardStep();
-        if (payload.ok && backgroundReady) {
-          showToast("Wizard checks passed. Workspace unlocked.");
+        if (payload.ok) {
+          showToast("CLI detection passed.");
         } else {
-          showToast("Wizard checks failed. Complete CLI setup and background service install to continue.");
+          showToast("CLI detection failed. Install/login and retry.");
         }
       }
 
-      async function installBackgroundServiceFromWizard() {
-        if (!hasBackgroundBridge || !window.smapBridge.backgroundServiceInstall) {
-          showToast("Background service installer is available only inside Electron.");
+      async function installSelectedCliInBackground() {
+        if (!hasWizardInstallBridge || !window.smapBridge.wizardCliInstallRun) {
+          showToast("Background install is available only inside Electron.");
           return;
         }
-        const result = await window.smapBridge.backgroundServiceInstall();
+        const subscription = document.getElementById("wizardSubscriptionSelect").value;
+        const cliId = document.getElementById("wizardCliTargetSelect").value;
+        if (!cliId) {
+          showToast("Select a supported CLI target first.");
+          return;
+        }
+        const result = await window.smapBridge.wizardCliInstallRun({ subscription, cliId });
         if (!result.ok) {
-          showToast(`Background install failed: ${result.stderr || "unknown error"}`);
+          const message = result.message || result.stderr || result.stdout || "unknown error";
+          document.getElementById("wizardInstallHelp").innerText = `Install failed: ${message}`;
+          showToast(`Install failed: ${message}`);
           return;
         }
-        showToast("Background service installed. Re-running wizard checks...");
+        const info = result.version || "installed";
+        document.getElementById("wizardInstallHelp").innerText =
+          `${result.cli_label}: install complete (${info}). Run detect/next to verify login state.`;
+        showToast(`${result.cli_label} install complete.`);
         await runWizardChecks();
       }
 
@@ -580,74 +593,30 @@
         targetSelect.value = targets[0];
         document.getElementById("wizardInstallHelp").innerText =
           "Install uses npm global package flow and then requires CLI auth login.";
-        recomputeWizardStep();
-      }
-
-      async function runWizardCliInstall() {
-        if (!hasWizardInstallBridge) {
-          showToast("CLI install planning is available only inside Electron.");
-          return;
-        }
-        const subscription = document.getElementById("wizardSubscriptionSelect").value;
-        const cliId = document.getElementById("wizardCliTargetSelect").value;
-        if (!cliId) {
-          showToast("Select a supported CLI target first.");
-          return;
-        }
-        const plan = await window.smapBridge.wizardCliInstallPlan({ subscription, cliId });
-        if (!plan.ok) {
-          document.getElementById("wizardInstallHelp").innerText = plan.message || "Wizard install plan failed.";
-          showToast(plan.message || "Invalid wizard install selection.");
-          return;
-        }
-        document.getElementById("wizardInstallHelp").innerText =
-          `${plan.cli_label}: run '${plan.install_command}', then '${plan.auth_command}', then click Run Mandatory Checks.`;
-        if (!hasTerminalBridge) {
-          showToast(`Install command: ${plan.install_command}`);
-          return;
-        }
-        const start = await window.smapBridge.terminalStart({
-          profile: "ops_status",
-          advancedMode: true,
-          cols: 120,
-          rows: 32,
-        });
-        if (!start.ok) {
-          showToast("Unable to start terminal for install.");
-          return;
-        }
-        terminalStarted = true;
-        appendTerminalOutput(`\n[SMAP] wizard install target=${plan.cli_id}\n`);
-        appendTerminalOutput(`$ ${plan.prereq_check_command}\n`);
-        await window.smapBridge.terminalWrite({ command: plan.prereq_check_command });
-        appendTerminalOutput(`$ ${plan.install_command}\n`);
-        await window.smapBridge.terminalWrite({ command: plan.install_command });
-        showToast(`Install command sent. Next run '${plan.auth_command}', then run mandatory checks.`);
-        recomputeWizardStep();
       }
 
       async function runWizardNext() {
-        if (wizardStep === 1) {
-          await runWizardCliInstall();
-          return;
-        }
-        if (wizardStep === 2) {
+        if (onboardingStage === "setup") {
           await runWizardChecks();
-          return;
-        }
-        if (wizardStep === 3) {
-          await installBackgroundServiceFromWizard();
-          return;
-        }
-        if (wizardStep === 4) {
-          const ok = await loadProvidersWithRetry(5, 1200);
-          if (ok) {
-            showToast("Provider list loaded. Add credentials and save.");
+          if (lastWizardPayload?.ok) {
+            setOnboardingStage("broker");
+            showToast("CLI checks passed. Enter broker details.");
           }
-          recomputeWizardStep();
           return;
         }
-        showToast("Wizard complete. Workspace is ready.");
+        if (onboardingStage === "broker") {
+          if (!providerConfigured) {
+            const ok = await loadProvidersWithRetry(3, 800);
+            if (ok) {
+              showToast("Enter credentials and click Save to continue.");
+            }
+            return;
+          }
+          setOnboardingStage("home");
+          showToast("Setup complete. Welcome to SMAP Home.");
+          return;
+        }
+        showToast("Home is ready.");
       }
 
       function showToast(text) {
@@ -723,9 +692,9 @@
           select.value = payload.selected_provider;
         }
         await getRequiredSchema(select.value);
+        providerConfigured = Boolean(payload.has_credentials);
         document.getElementById("providerStatus").innerText =
           payload.has_credentials ? `Saved for ${payload.selected_provider}` : "No credentials saved";
-        recomputeWizardStep();
       }
 
       async function loadProvidersWithRetry(maxAttempts = 6, waitMs = 1000) {
@@ -758,7 +727,6 @@
         if (lastError) {
           showToast(`Provider warning: ${lastError.message}`);
         }
-        recomputeWizardStep();
         return false;
       }
 
@@ -783,8 +751,14 @@
             method: "PUT",
             body: JSON.stringify({ provider, credentials }),
           });
+          providerConfigured = true;
           document.getElementById("providerStatus").innerText = `Saved for ${payload.selected_provider}`;
-          showToast("Provider credentials saved.");
+          if (onboardingStage === "broker") {
+            setOnboardingStage("home");
+            showToast("Provider saved. Setup complete.");
+          } else {
+            showToast("Provider credentials saved.");
+          }
         } catch (error) {
           showToast(`Save failed: ${error.message}`);
         }
@@ -983,11 +957,9 @@
           sendTerminalCommand();
         }
       });
-      document.getElementById("wizardRunBtn").addEventListener("click", runWizardChecks);
-      document.getElementById("wizardInstallServiceBtn").addEventListener("click", installBackgroundServiceFromWizard);
-      document.getElementById("wizardRefreshServiceBtn").addEventListener("click", runWizardChecks);
+      document.getElementById("wizardDetectBtn").addEventListener("click", runWizardChecks);
       document.getElementById("wizardSubscriptionSelect").addEventListener("change", refreshWizardCliTargets);
-      document.getElementById("wizardInstallCliBtn").addEventListener("click", runWizardCliInstall);
+      document.getElementById("wizardInstallCliBtn").addEventListener("click", installSelectedCliInBackground);
       document.getElementById("wizardNextBtn").addEventListener("click", runWizardNext);
       if (hasTerminalBridge) {
         window.smapBridge.onTerminalOutput((chunk) => appendTerminalOutput(chunk));
@@ -998,15 +970,11 @@
       }
 
       async function boot() {
-        setWorkspaceLocked(true);
+        setOnboardingStage("setup");
         renderWizardChecks(null);
         if (!hasBridge) {
           document.getElementById("startServiceBtn").dataset.forceDisabled = "1";
           document.getElementById("stopServiceBtn").dataset.forceDisabled = "1";
-        }
-        if (!hasBackgroundBridge) {
-          document.getElementById("wizardInstallServiceBtn").dataset.forceDisabled = "1";
-          document.getElementById("wizardRefreshServiceBtn").dataset.forceDisabled = "1";
         }
         if (!hasWizardInstallBridge) {
           document.getElementById("wizardInstallCliBtn").dataset.forceDisabled = "1";
@@ -1033,7 +1001,7 @@
           showToast(`Service status warning: ${error.message}`);
         }
         try {
-          await loadProvidersWithRetry(8, 1200);
+          await loadProvidersWithRetry(3, 800);
         } catch {
           // retry helper handles fallback + user messaging
         }
@@ -1048,9 +1016,7 @@
           showToast(`Terminal warning: ${error.message}`);
         }
         renderDetail();
-        await runWizardChecks();
-        recomputeWizardStep();
-        showToast("Workspace boot complete.");
+        showToast("Setup ready. Install/detect CLI, then click Next.");
       }
       boot();
     </script>

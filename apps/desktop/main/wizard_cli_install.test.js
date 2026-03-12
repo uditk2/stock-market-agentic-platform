@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildWizardCliInstallPlan } = require('./wizard_cli_install');
+const {
+  buildWizardCliInstallPlan,
+  runWizardCliInstall,
+  shellCommandForPlatform,
+} = require('./wizard_cli_install');
 
 test('buildWizardCliInstallPlan rejects unknown target', () => {
   const result = buildWizardCliInstallPlan({
@@ -31,4 +35,29 @@ test('buildWizardCliInstallPlan returns codex install plan', () => {
   assert.equal(result.ok, true);
   assert.equal(result.install_command, 'npm install -g @openai/codex');
   assert.equal(result.auth_command, 'codex auth login');
+});
+
+test('shellCommandForPlatform uses cmd on windows', () => {
+  const result = shellCommandForPlatform('win32', 'echo hi');
+  assert.equal(result.binary, 'cmd.exe');
+  assert.deepEqual(result.args, ['/d', '/s', '/c', 'echo hi']);
+});
+
+test('runWizardCliInstall returns prereq failure when npm is missing', async () => {
+  const result = await runWizardCliInstall(
+    {
+      platform: 'linux',
+      subscription: 'codex',
+      cliId: 'codex',
+    },
+    async () => ({
+      ok: false,
+      code: 1,
+      stdout: '',
+      stderr: 'npm: command not found',
+      error: null,
+    }),
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.error, 'prereq_failed');
 });

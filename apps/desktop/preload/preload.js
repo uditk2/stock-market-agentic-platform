@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('smapBridge', {
   cliChecks: (payload) => ipcRenderer.invoke('cli-checks', payload),
   wizardCliInstallPlan: (payload) => ipcRenderer.invoke('wizard-cli-install-plan', payload),
+  wizardCliInstallRun: (payload) => ipcRenderer.invoke('wizard-cli-install-run', payload),
   serviceStatus: () => ipcRenderer.invoke('service-status'),
   serviceStart: () => ipcRenderer.invoke('service-start'),
   serviceStop: () => ipcRenderer.invoke('service-stop'),

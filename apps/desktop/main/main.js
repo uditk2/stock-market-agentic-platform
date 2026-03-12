@@ -4,7 +4,7 @@ const { spawn } = require('child_process');
 const pty = require('node-pty');
 const { PROFILES, isCommandAllowed } = require('./terminal_profiles');
 const { runMandatoryCliChecks } = require('./cli_checks');
-const { buildWizardCliInstallPlan } = require('./wizard_cli_install');
+const { buildWizardCliInstallPlan, runWizardCliInstall } = require('./wizard_cli_install');
 const { resolveServiceLaunch } = require('./service_runtime');
 const { getBackgroundServiceStatus, installBackgroundService } = require('./background_service_manager');
 
@@ -37,7 +37,13 @@ function startService() {
   });
   activeServiceLaunch = launch;
 
-  serviceProc = spawn(launch.command, launch.args, { shell: false });
+  serviceProc = spawn(launch.command, launch.args, {
+    shell: false,
+    env: {
+      ...process.env,
+      SMAP_SERVICE_PORT: String(launch.port || ''),
+    },
+  });
   console.log(`[SMAP] service launch mode=${launch.mode} source=${launch.source} command=${launch.command}`);
 
   serviceProc.on('exit', () => {
@@ -116,7 +122,12 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('service-status', () => ({
   running: !!serviceProc,
-  launch: activeServiceLaunch || null,
+  launch: activeServiceLaunch
+    ? {
+        ...activeServiceLaunch,
+        baseUrl: `http://127.0.0.1:${activeServiceLaunch.port}`,
+      }
+    : null,
 }));
 ipcMain.handle('service-stop', () => {
   stopService();
@@ -133,6 +144,13 @@ ipcMain.handle('cli-checks', (_, payload) =>
 );
 ipcMain.handle('wizard-cli-install-plan', (_, payload) =>
   buildWizardCliInstallPlan({
+    platform: process.platform,
+    subscription: payload?.subscription,
+    cliId: payload?.cliId,
+  }),
+);
+ipcMain.handle('wizard-cli-install-run', async (_, payload) =>
+  runWizardCliInstall({
     platform: process.platform,
     subscription: payload?.subscription,
     cliId: payload?.cliId,

@@ -298,3 +298,30 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - W6: real connector baseline
 - W7-W8: CI hardening + integration/ops tests
 - W9: issue sync and tracking
+
+### Current Slice: First-Open Progressive Onboarding
+- Problem statement:
+  - Users are confused by immediate full-screen lock behavior; installer/detection/broker steps are not obvious in sequence.
+- Constraints:
+  - Keep mandatory CLI checks.
+  - Keep provider API contract unchanged.
+  - Support both Codex and Claude install/detect paths.
+- Design alternatives considered:
+  1. Keep current lock and add more text: rejected (does not simplify flow).
+  2. Move all setup into terminal panel: rejected (too technical for first-time onboarding).
+  3. Add staged UI (`setup -> broker -> home`) with background install: chosen.
+- Chosen architecture:
+  - Renderer onboarding state machine with stage-based visibility.
+  - Main-process IPC for background CLI install execution.
+  - Provider save action transitions stage to home.
+- Interfaces/modules:
+  - `apps/desktop/renderer/index.html`
+  - `apps/desktop/main/wizard_cli_install.js`
+  - `apps/desktop/main/main.js`
+  - `apps/desktop/preload/preload.js`
+- Delivery plan:
+  - Add staged rendering and Next behavior.
+  - Add background install IPC + tests.
+  - Validate desktop test suite and CI.
+- Risks/open questions:
+  - Global npm installs may fail in user environments without proper permissions/PATH; wizard must show actionable failure text.

@@ -1,0 +1,8 @@
+{
+  "tasks": [
+    {"id": "W8-1", "title": "Renderer staged onboarding visibility", "depends_on": []},
+    {"id": "W8-2", "title": "Background CLI installer IPC in main/preload", "depends_on": []},
+    {"id": "W8-3", "title": "Wire setup->broker->home transitions", "depends_on": ["W8-1", "W8-2"]},
+    {"id": "W8-4", "title": "Add/adjust tests and run desktop test suite", "depends_on": ["W8-3"]}
+  ]
+}

@@ -45,3 +45,9 @@ Finalize build hardening, integration checks, and issue-tracking sync.
     - Ensure `ci-failure` label exists.
     - Create/update a single `CI Failure Tracker` issue and append failure run details.
     - Optionally send Telegram alert when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets are configured.
+- Added action runtime hardening for Node 24 migration and checkout reliability:
+  - Upgraded `build-installers.yml` action versions:
+    - `actions/checkout@v6`
+    - `actions/setup-python@v6`
+    - `actions/setup-node@v6`
+    - `actions/upload-artifact@v7`

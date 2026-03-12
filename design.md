@@ -219,6 +219,21 @@ Design constraints:
 Chosen approach:
 - Add dedicated service binary resolver in desktop main process.
 
+## 13. W7 Artifact Delivery Narrowing (March 2026)
+Objective:
+- Align installer artifact outputs with user download intent, with macOS artifact focused on DMG only.
+
+Design constraints:
+- Keep cross-platform build matrix unchanged.
+- Keep generated installers intact; only narrow uploaded artifact payloads.
+- Preserve deterministic artifact naming per OS runner.
+
+Chosen approach:
+- Split upload step by OS in `build-installers.yml`.
+- macOS upload path includes only `apps/desktop/release/*.dmg`.
+- Windows upload path includes only `*.exe` and `*.msi`.
+- Linux upload path includes only `*.AppImage` and `*.deb`.
+
 ## 13. W7 Wizard Opening UX Stabilization (March 2026)
 Objective:
 - Remove first-impression friction where the Broker Provider dropdown appears non-functional while the wizard gate is active.

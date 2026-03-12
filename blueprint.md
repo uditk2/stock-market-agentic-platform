@@ -175,6 +175,28 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks/open questions:
   - Claude authentication introspection remains CLI-version sensitive; subscription scoping limits false-blocking for non-subscribed paths.
 
+### Current Slice: DMG-Only Artifact Delivery
+- Problem statement:
+  - User download flow needs only macOS DMG, but CI artifact bundles include extra file types not needed for manual install.
+- Constraints:
+  - Keep matrix builds for macOS/Windows/Linux.
+  - Narrow upload payloads without changing installer generation behavior.
+- Design alternatives considered:
+  1. Keep one shared upload glob for all OSes: rejected (over-shares artifacts).
+  2. Remove non-DMG outputs from electron-builder targets: rejected (changes build outputs globally).
+  3. Keep builds unchanged, split artifact upload paths per OS: chosen.
+- Chosen architecture:
+  - Conditional upload steps in GitHub Actions keyed by `matrix.os`.
+  - macOS artifact upload includes only `*.dmg`.
+- Interfaces/modules:
+  - `.github/workflows/build-installers.yml`
+- Delivery plan:
+  - Patch workflow upload steps by OS.
+  - Validate workflow syntax and run CI.
+  - Share macOS artifact path with user.
+- Risks/open questions:
+  - Removing update metadata from uploaded artifacts may be incompatible with future auto-update channel expectations.
+
 ## Risks and Open Questions
 ### Risks
 - External API limits and unstable schemas.

@@ -135,6 +135,17 @@
 3. Keep wizard guidance sequential with one clear next action at each stage.
 4. Re-run desktop + service tests, push, and verify installer CI matrix green.
 
+## Iteration 22 (Artifact Scope Draft)
+1. Reproduce current uploaded artifact scope from `Build Installers` workflow.
+2. Isolate user-facing installer files needed per OS.
+3. Draft OS-specific upload-path split with macOS DMG-only requirement.
+
+## Iteration 23 (Artifact Scope Refined)
+1. Split upload steps by `matrix.os` to avoid mixed glob overreach.
+2. Keep macOS upload limited to `*.dmg` for user download path.
+3. Keep Windows/Linux uploads limited to primary installer outputs.
+4. Validate workflow and run CI before handing new artifact link to user.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.

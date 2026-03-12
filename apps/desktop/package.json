@@ -1,6 +1,7 @@
 {
   "name": "smap-desktop",
   "version": "0.1.0",
+  "homepage": "https://github.com/uditk2/stock-market-agentic-platform",
   "private": true,
   "main": "main/main.js",
   "scripts": {
@@ -45,6 +46,7 @@
       ]
     },
     "linux": {
+      "maintainer": "Udit Khandelwal <udit@example.com>",
       "target": [
         "AppImage",
         "deb"
@@ -52,7 +54,10 @@
     }
   },
   "description": "SMAP Desktop shell",
-  "author": "Udit Khandelwal",
+  "author": {
+    "name": "Udit Khandelwal",
+    "email": "udit@example.com"
+  },
   "dependencies": {
     "node-pty": "^1.1.0"
   }

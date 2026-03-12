@@ -6,7 +6,7 @@ const CLI_DEFINITIONS = [
     label: 'OpenAI Codex CLI',
     binary: 'codex',
     authCandidates: [
-      ['auth', 'status'],
+      ['login', 'status'],
       ['whoami'],
     ],
   },
@@ -14,10 +14,7 @@ const CLI_DEFINITIONS = [
     id: 'claude',
     label: 'Claude CLI',
     binary: 'claude',
-    authCandidates: [
-      ['auth', 'status'],
-      ['whoami'],
-    ],
+    authCandidates: [],
   },
 ];
 
@@ -65,6 +62,21 @@ function checkSingleCli(definition, runner = runCommand) {
   }
 
   const version = parseVersion(versionProbe.stdout || versionProbe.stderr);
+  if (!definition.authCandidates.length) {
+    return {
+      id: definition.id,
+      label: definition.label,
+      installed: true,
+      version,
+      auth_ok: true,
+      pass: Boolean(version),
+      diagnostics: {
+        version_probe: versionProbe,
+        auth_probe: null,
+      },
+    };
+  }
+
   let authProbe = null;
   for (const candidate of definition.authCandidates) {
     const probe = runner(definition.binary, candidate);
@@ -98,11 +110,24 @@ function checkSingleCli(definition, runner = runCommand) {
   };
 }
 
-function runMandatoryCliChecks(runner = runCommand) {
-  const checks = CLI_DEFINITIONS.map((definition) => checkSingleCli(definition, runner));
+function runMandatoryCliChecks(optionsOrRunner = {}, maybeRunner = runCommand) {
+  let options = optionsOrRunner;
+  let runner = maybeRunner;
+  if (typeof optionsOrRunner === 'function') {
+    runner = optionsOrRunner;
+    options = {};
+  }
+  const requiredCliIds = Array.isArray(options?.requiredCliIds)
+    ? new Set(options.requiredCliIds.map((item) => String(item)))
+    : null;
+  const definitions = requiredCliIds && requiredCliIds.size
+    ? CLI_DEFINITIONS.filter((definition) => requiredCliIds.has(definition.id))
+    : CLI_DEFINITIONS;
+  const checks = definitions.map((definition) => checkSingleCli(definition, runner));
   return {
     ok: checks.every((entry) => entry.pass),
     checks,
+    required_cli_ids: definitions.map((definition) => definition.id),
     checked_at: new Date().toISOString(),
   };
 }

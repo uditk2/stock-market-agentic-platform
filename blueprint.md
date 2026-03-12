@@ -147,6 +147,34 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks/open questions:
   - CLI package names/install channels can change upstream; commands should remain easy to update in one module.
 
+### Current Slice: Wizard Reliability + Step-by-Step UX
+- Problem statement:
+  - Users can install CLI and still fail mandatory checks due stale probe commands and non-scoped requirements; provider list can be unavailable during early service warmup.
+- Constraints:
+  - Keep mandatory gate behavior.
+  - Keep subscription-driven CLI expectations.
+  - Keep provider API calls resilient to startup race.
+- Design alternatives considered:
+  1. Keep current checks and only change labels: rejected (does not fix functional failures).
+  2. Remove auth probing entirely: rejected (too weak for Codex where status exists).
+  3. Update probes + subscription scoping + provider retry + stepper UX: chosen.
+- Chosen architecture:
+  - `cli_checks` accepts required CLI scope and uses current-compatible auth candidate for Codex.
+  - renderer passes subscription into checks request.
+  - renderer adds provider-load retry helper and wizard `Next` state machine.
+- Interfaces/modules:
+  - `apps/desktop/main/cli_checks.js`
+  - `apps/desktop/main/main.js` (`cli-checks` IPC payload support)
+  - `apps/desktop/preload/preload.js`
+  - `apps/desktop/renderer/index.html`
+- Delivery plan:
+  - Patch check engine and tests.
+  - Patch renderer retry + stepper.
+  - Run desktop/service tests.
+  - Push and monitor CI green.
+- Risks/open questions:
+  - Claude authentication introspection remains CLI-version sensitive; subscription scoping limits false-blocking for non-subscribed paths.
+
 ## Risks and Open Questions
 ### Risks
 - External API limits and unstable schemas.

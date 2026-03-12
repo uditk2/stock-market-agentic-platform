@@ -126,7 +126,11 @@ ipcMain.handle('service-start', () => {
   startService();
   return { ok: true };
 });
-ipcMain.handle('cli-checks', () => runMandatoryCliChecks());
+ipcMain.handle('cli-checks', (_, payload) =>
+  runMandatoryCliChecks({
+    requiredCliIds: Array.isArray(payload?.requiredCliIds) ? payload.requiredCliIds : undefined,
+  }),
+);
 ipcMain.handle('wizard-cli-install-plan', (_, payload) =>
   buildWizardCliInstallPlan({
     platform: process.platform,

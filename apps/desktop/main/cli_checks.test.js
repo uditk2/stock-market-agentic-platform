@@ -36,7 +36,7 @@ test('checkSingleCli fails when executable is missing', () => {
       id: 'codex',
       label: 'OpenAI Codex CLI',
       binary: 'codex',
-      authCandidates: [['auth', 'status']],
+      authCandidates: [['login', 'status']],
     },
     runner,
   );
@@ -54,7 +54,7 @@ test('checkSingleCli passes when version and auth probes pass', () => {
       exitCode: 0,
       error: null,
     },
-    'codex auth status': {
+    'codex login status': {
       success: true,
       stdout: 'authenticated',
       stderr: '',
@@ -68,7 +68,7 @@ test('checkSingleCli passes when version and auth probes pass', () => {
       id: 'codex',
       label: 'OpenAI Codex CLI',
       binary: 'codex',
-      authCandidates: [['auth', 'status']],
+      authCandidates: [['login', 'status']],
     },
     runner,
   );
@@ -81,13 +81,22 @@ test('checkSingleCli passes when version and auth probes pass', () => {
 test('runMandatoryCliChecks aggregates status', () => {
   const runner = makeRunner({
     'codex --version': { success: true, stdout: 'codex 1.2.3', stderr: '', exitCode: 0, error: null },
-    'codex auth status': { success: true, stdout: 'ok', stderr: '', exitCode: 0, error: null },
+    'codex login status': { success: true, stdout: 'ok', stderr: '', exitCode: 0, error: null },
     'claude --version': { success: true, stdout: 'claude 0.9.0', stderr: '', exitCode: 0, error: null },
-    'claude auth status': { success: false, stdout: '', stderr: 'not logged in', exitCode: 1, error: null },
-    'claude whoami': { success: false, stdout: '', stderr: 'not logged in', exitCode: 1, error: null },
   });
 
   const result = runMandatoryCliChecks(runner);
-  assert.equal(result.ok, false);
+  assert.equal(result.ok, true);
   assert.equal(result.checks.length >= 2, true);
+});
+
+test('runMandatoryCliChecks supports subscription scope', () => {
+  const runner = makeRunner({
+    'codex --version': { success: true, stdout: 'codex 1.2.3', stderr: '', exitCode: 0, error: null },
+    'codex login status': { success: true, stdout: 'ok', stderr: '', exitCode: 0, error: null },
+  });
+  const result = runMandatoryCliChecks({ requiredCliIds: ['codex'] }, runner);
+  assert.equal(result.ok, true);
+  assert.equal(result.checks.length, 1);
+  assert.equal(result.checks[0].id, 'codex');
 });

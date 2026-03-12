@@ -135,10 +135,18 @@
             <div id="wizardInstallHelp" class="small text-secondary mb-3">
               Choose your subscription and target CLI, then run install from wizard.
             </div>
-            <button class="btn btn-warning" id="wizardRunBtn">
-              <i class="bi bi-shield-check"></i>
-              Run Mandatory Checks
-            </button>
+            <div id="wizardStepText" class="small text-secondary mb-2">
+              Step 1: Choose subscription and install CLI.
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+              <button class="btn btn-warning" id="wizardRunBtn">
+                <i class="bi bi-shield-check"></i>
+                Run Mandatory Checks
+              </button>
+              <button class="btn btn-primary" id="wizardNextBtn">
+                Next
+              </button>
+            </div>
           </div>
         </div>
 
@@ -313,8 +321,12 @@
       let currentDetail = null;
       let terminalStarted = false;
       let workspaceLocked = true;
+      let wizardStep = 1;
+      let lastWizardPayload = null;
+      let lastBackgroundReady = false;
       const lockBypassControlIds = new Set([
         "wizardRunBtn",
+        "wizardNextBtn",
         "wizardInstallServiceBtn",
         "wizardRefreshServiceBtn",
         "wizardSubscriptionSelect",
@@ -361,6 +373,61 @@
         providerHelp.innerText = locked
           ? "Workspace is locked until wizard checks pass. You can still select/reload broker provider."
           : "Credentials are encrypted at rest in local SQLite.";
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function getRequiredCliIdsForSubscription(subscription) {
+        if (subscription === "both") {
+          return ["codex", "claude"];
+        }
+        if (subscription === "codex") {
+          return ["codex"];
+        }
+        if (subscription === "claude") {
+          return ["claude"];
+        }
+        return [];
+      }
+
+      function providerSelectionReady() {
+        const selected = document.getElementById("providerSelect").value;
+        return Boolean(selected);
+      }
+
+      function updateWizardStepUi() {
+        const labels = {
+          1: "Step 1: Choose subscription and install CLI.",
+          2: "Step 2: Run mandatory CLI checks.",
+          3: "Step 3: Install background service.",
+          4: "Step 4: Load provider list and configure credentials.",
+          5: "Step complete: Workspace ready.",
+        };
+        document.getElementById("wizardStepText").innerText = labels[wizardStep] || labels[1];
+      }
+
+      function recomputeWizardStep() {
+        const subscription = document.getElementById("wizardSubscriptionSelect").value;
+        const requiredCliIds = getRequiredCliIdsForSubscription(subscription);
+        if (!requiredCliIds.length) {
+          wizardStep = 1;
+          updateWizardStepUi();
+          return;
+        }
+        if (!lastWizardPayload || !lastWizardPayload.ok) {
+          wizardStep = 2;
+          updateWizardStepUi();
+          return;
+        }
+        if (!lastBackgroundReady) {
+          wizardStep = 3;
+          updateWizardStepUi();
+          return;
+        }
+        wizardStep = providerSelectionReady() ? 5 : 4;
+        updateWizardStepUi();
       }
 
       function renderBackgroundStatus(status) {
@@ -421,10 +488,38 @@
           showToast("Wizard checks are available only inside Electron.");
           return;
         }
-        const payload = await window.smapBridge.cliChecks();
+        const requiredCliIds = getRequiredCliIdsForSubscription(
+          document.getElementById("wizardSubscriptionSelect").value,
+        );
+        if (!requiredCliIds.length) {
+          renderWizardChecks({
+            ok: false,
+            checks: [
+              {
+                label: "Subscription selection",
+                pass: false,
+                installed: false,
+                version: null,
+                auth_ok: false,
+              },
+            ],
+          });
+          lastWizardPayload = { ok: false };
+          lastBackgroundReady = false;
+          recomputeWizardStep();
+          showToast("Choose your subscription first, then install required CLI.");
+          return;
+        }
+        const payload = await window.smapBridge.cliChecks({ requiredCliIds });
         const bgStatus = hasBackgroundBridge ? await window.smapBridge.backgroundServiceStatus() : null;
         const backgroundReady = renderBackgroundStatus(bgStatus);
+        lastWizardPayload = payload;
+        lastBackgroundReady = backgroundReady;
         renderWizardChecks(payload, backgroundReady);
+        if (payload.ok && backgroundReady && !providerSelectionReady()) {
+          await loadProvidersWithRetry(4, 1000);
+        }
+        recomputeWizardStep();
         if (payload.ok && backgroundReady) {
           showToast("Wizard checks passed. Workspace unlocked.");
         } else {
@@ -483,6 +578,7 @@
         targetSelect.value = targets[0];
         document.getElementById("wizardInstallHelp").innerText =
           "Install uses npm global package flow and then requires CLI auth login.";
+        recomputeWizardStep();
       }
 
       async function runWizardCliInstall() {
@@ -525,6 +621,31 @@
         appendTerminalOutput(`$ ${plan.install_command}\n`);
         await window.smapBridge.terminalWrite({ command: plan.install_command });
         showToast(`Install command sent. Next run '${plan.auth_command}', then run mandatory checks.`);
+        recomputeWizardStep();
+      }
+
+      async function runWizardNext() {
+        if (wizardStep === 1) {
+          await runWizardCliInstall();
+          return;
+        }
+        if (wizardStep === 2) {
+          await runWizardChecks();
+          return;
+        }
+        if (wizardStep === 3) {
+          await installBackgroundServiceFromWizard();
+          return;
+        }
+        if (wizardStep === 4) {
+          const ok = await loadProvidersWithRetry(5, 1200);
+          if (ok) {
+            showToast("Provider list loaded. Add credentials and save.");
+          }
+          recomputeWizardStep();
+          return;
+        }
+        showToast("Wizard complete. Workspace is ready.");
       }
 
       function showToast(text) {
@@ -597,6 +718,29 @@
         await getRequiredSchema(select.value);
         document.getElementById("providerStatus").innerText =
           payload.has_credentials ? `Saved for ${payload.selected_provider}` : "No credentials saved";
+        recomputeWizardStep();
+      }
+
+      async function loadProvidersWithRetry(maxAttempts = 6, waitMs = 1000) {
+        let lastError = null;
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+          try {
+            await loadProviders();
+            return true;
+          } catch (error) {
+            lastError = error;
+            await sleep(waitMs);
+          }
+        }
+        renderProviderFallback(
+          "Provider list unavailable",
+          "Unable to fetch provider list from service. Keep wizard running, then click Next/Reload.",
+        );
+        if (lastError) {
+          showToast(`Provider warning: ${lastError.message}`);
+        }
+        recomputeWizardStep();
+        return false;
       }
 
       async function saveProvider() {
@@ -800,8 +944,10 @@
         getRequiredSchema(event.target.value);
       });
       document.getElementById("loadProviderBtn").addEventListener("click", async () => {
-        await loadProviders();
-        showToast("Provider state refreshed.");
+        const ok = await loadProvidersWithRetry(4, 800);
+        if (ok) {
+          showToast("Provider state refreshed.");
+        }
       });
       document.getElementById("saveProviderBtn").addEventListener("click", saveProvider);
       document.getElementById("searchBtn").addEventListener("click", loadRecommendations);
@@ -823,6 +969,7 @@
       document.getElementById("wizardRefreshServiceBtn").addEventListener("click", runWizardChecks);
       document.getElementById("wizardSubscriptionSelect").addEventListener("change", refreshWizardCliTargets);
       document.getElementById("wizardInstallCliBtn").addEventListener("click", runWizardCliInstall);
+      document.getElementById("wizardNextBtn").addEventListener("click", runWizardNext);
       if (hasTerminalBridge) {
         window.smapBridge.onTerminalOutput((chunk) => appendTerminalOutput(chunk));
         window.smapBridge.onTerminalExit(() => {
@@ -867,13 +1014,9 @@
           showToast(`Service status warning: ${error.message}`);
         }
         try {
-          await loadProviders();
-        } catch (error) {
-          renderProviderFallback(
-            "Provider list unavailable",
-            "Unable to fetch provider list from service. Keep wizard running, then click Reload.",
-          );
-          showToast(`Provider warning: ${error.message}`);
+          await loadProvidersWithRetry(8, 1200);
+        } catch {
+          // retry helper handles fallback + user messaging
         }
         try {
           await loadRecommendations();
@@ -887,6 +1030,7 @@
         }
         renderDetail();
         await runWizardChecks();
+        recomputeWizardStep();
         showToast("Workspace boot complete.");
       }
       boot();

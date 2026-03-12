@@ -123,6 +123,18 @@
 3. Add unit tests for install-plan validation and command generation.
 4. Re-run desktop + service tests before CI push.
 
+## Iteration 20 (Wizard Reliability + Stepper Draft)
+1. Reproduce mandatory-check failures on current machine and capture failing probe commands.
+2. Patch CLI check engine to support subscription-scoped required checks.
+3. Update stale auth probes (Codex command compatibility).
+4. Add provider-load startup retry and step-by-step wizard Next flow.
+
+## Iteration 21 (Wizard Reliability + Stepper Refined)
+1. Keep deterministic pass criteria for selected subscription scope only.
+2. Ensure provider dropdown auto-recovers after service warmup (no manual reload requirement for first success path).
+3. Keep wizard guidance sequential with one clear next action at each stage.
+4. Re-run desktop + service tests, push, and verify installer CI matrix green.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -140,6 +152,7 @@
 - Implement executable detection, version check, and auth/session checks for Codex/Claude CLIs.
 - Status: complete (CLI check engine, preload bridge, mandatory renderer wizard gate, tests).
 - Follow-up status: in progress (wizard install assistant flow based on user-declared subscription + selected CLI).
+- Follow-up status: in progress (reliability hardening + step-by-step wizard next flow).
 
 4. W4 Embedded Terminal Runtime
 - Add PTY-backed terminal panel with safe command profiles and advanced mode toggle.

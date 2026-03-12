@@ -254,6 +254,25 @@ Constraints:
 - Avoid silent auto-installs without user intent.
 - Keep install flow transparent (show command + next steps).
 - Preserve compatibility with non-Electron preview mode by showing plan text even if terminal bridge is unavailable.
+
+## 15. W3 Wizard Reliability + Stepper UX (March 2026)
+Objective:
+- Make installer wizard deterministic and sequential: guide users through required setup one step at a time with a `Next` action.
+
+Issues to resolve:
+- Mandatory check failures due stale CLI auth probes (`codex auth status`, `claude auth status`) no longer matching current CLI behavior.
+- CLI checks should respect declared subscription scope (do not block on tools user does not subscribe to).
+- Provider list can appear unavailable during boot due early API call race before service becomes responsive.
+
+Chosen reliability changes:
+- Update Codex auth probe to `codex login status`.
+- Scope mandatory checks by subscription selection (`codex`, `claude`, `both`).
+- Add provider-loading retry path during boot/wizard progression to tolerate service warmup.
+- Add wizard stepper state + `Next` button to drive sequence:
+  1. subscription + CLI install
+  2. mandatory checks
+  3. background service install/check
+  4. provider selection/credential setup
 - Resolution order:
   1. `SMAP_SERVICE_BIN` env override
   2. packaged resource path candidates under Electron `process.resourcesPath/service/`

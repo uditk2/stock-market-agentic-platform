@@ -33,3 +33,22 @@ Sprint 1 scaffolding implemented with pluggable interfaces:
 - `StrategyModule`
 
 Background scheduler runs inside service process and is designed to keep ingestion jobs independent from the UI lifecycle.
+
+## W5 Background Service Install Helpers
+- Linux (`systemd --user`):
+```bash
+scripts/background_service/install_linux_user_service.sh --service-bin /abs/path/to/smap-service
+scripts/background_service/uninstall_linux_user_service.sh
+```
+- macOS (`launchd` LaunchAgent):
+```bash
+scripts/background_service/install_macos_launchagent.sh --service-bin /abs/path/to/smap-service
+scripts/background_service/uninstall_macos_launchagent.sh
+```
+- Windows (Task Scheduler):
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/background_service/install_windows_task.ps1 -ServiceBin C:\path\to\smap-service.exe
+powershell -ExecutionPolicy Bypass -File scripts/background_service/uninstall_windows_task.ps1
+```
+
+All installers default to user-scoped registration and support optional `--arg`/`-ServiceArgs` for service runtime flags.

@@ -70,6 +70,18 @@
 3. Add unit coverage for CLI check engine pass/fail scenarios.
 4. Re-run desktop + service tests before marking Issue #3 complete.
 
+## Iteration 11 (W5 Service Install Draft)
+1. Define a reusable template contract for Linux, macOS, and Windows service descriptors.
+2. Add a renderer utility to materialize templates from typed inputs.
+3. Add install/uninstall scripts for systemd user units, launchd LaunchAgents, and Task Scheduler jobs.
+4. Keep scripts user-scoped by default to avoid admin-only workflows.
+
+## Iteration 12 (W5 Service Install Refined)
+1. Keep service command/args configurable to support both packaged binaries and source-mode runtime.
+2. Add unit tests for template rendering to prevent descriptor drift.
+3. Ensure helper scripts are idempotent and safe to rerun.
+4. Re-run desktop + service tests before marking W5 complete.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -96,6 +108,8 @@
   - launchd (macOS)
   - Task Scheduler (Windows)
   - systemd user service (Linux)
+- Add install/uninstall helpers for each OS template.
+- Status: complete (template renderer, per-OS install/uninstall helpers, and renderer tests delivered).
 
 6. W6 Real Connector Baseline
 - Add production-grade connector skeletons (with retry/backoff and normalized outputs):

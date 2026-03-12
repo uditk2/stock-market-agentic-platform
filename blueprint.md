@@ -21,6 +21,8 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - W2 home scope is recommendations + search only (watchlist deferred).
 - W2 default recommendation order is confidence descending.
 - W2 interface uses Bootstrap 5 component patterns for consistency and operator usability.
+- W5 background-service installation defaults to user scope (`systemd --user`, `LaunchAgent`, user Task Scheduler job).
+- W5 templates accept configurable service command/arguments to support packaged and source runtime variants.
 
 ## Design Alternatives Considered
 1. Monolith (UI + data + scheduling in one process): rejected due to low modularity and restart fragility.
@@ -66,6 +68,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - `renderer/*` (wizard, terminal view, scheduler view, recommendation workspace)
   - Uses Bootstrap cards/nav-tabs/forms/toasts and iconography for standardized UX affordances.
   - W4 adds a PTY-backed terminal panel with profile-gated command execution and explicit advanced mode.
+  - W5 adds service-install template renderer + OS helper scripts for background runtime setup.
 
 ## Delivery Plan
 - Phase 1 (this run): foundation code scaffolding + modular plugin contracts + background scheduler service + desktop shell + CI packaging workflow.
@@ -75,6 +78,12 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Phase 2.5:
   - W4 embedded terminal runtime complete (PTY session manager, profile gating, advanced mode toggle, renderer terminal panel).
   - W3 wizard enforcement complete (mandatory CLI install/version/auth gating before workspace unlock).
+- Phase 2.75:
+  - W5 background service installation layer:
+    - template-driven descriptor generation (Linux/macOS/Windows)
+    - install/uninstall helper scripts
+    - test coverage for renderer correctness
+  - Status: complete.
 - Phase 3: recommendation lifecycle, monitoring, backtest, supervised learning.
 
 ## Risks and Open Questions
@@ -83,6 +92,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Packaging complexity across three OS targets.
 - AI CLI redistribution/auth flows may vary by provider version.
 - Connector observability payloads can drift if schema discipline is not maintained across future job types.
+- Service manager behaviors differ by OS; scripts must stay user-scope-safe and idempotent.
 
 ### Open Questions (queued for next user window)
 - OQ1: Preferred GitHub repo visibility/name if creating a new remote is required.

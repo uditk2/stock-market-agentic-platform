@@ -161,3 +161,48 @@ Delivered implementation:
 - Added renderer setup wizard card with mandatory check execution and status rendering.
 - Added workspace lock gating: all workspace controls remain disabled until wizard checks pass.
 - Added unit tests for CLI check engine behavior.
+
+## 11. W5 Background Service Installation Layer (March 2026)
+Objective:
+- Allow SMAP service runtime to stay active without the desktop UI, using native OS user-scoped service managers.
+
+Design constraints:
+- Keep baseline installs user-scoped (no mandatory system-wide admin requirement).
+- Keep service command configurable for packaged binary vs source runtime.
+- Keep templates deterministic and versionable in-repo.
+
+Design alternatives considered:
+- Pure shell-generated service descriptors: fast but duplicated logic across OS scripts.
+- Template + renderer utility: chosen for consistency and lower drift risk.
+
+Chosen approach:
+- Add reusable service descriptor templates for:
+  - Linux systemd user unit
+  - macOS launchd LaunchAgent plist
+  - Windows Task Scheduler XML
+- Add a desktop-side template rendering utility with typed inputs.
+- Add per-OS install/uninstall helper scripts that:
+  - render descriptors from template contract
+  - register/unregister with native OS manager
+  - default to user scope
+
+Acceptance target:
+- Service can be installed, started, stopped, and removed independently of the desktop UI process.
+
+Delivered implementation:
+- Added versioned descriptor templates:
+  - `linux.systemd-user.service.tmpl`
+  - `macos.launchagent.plist.tmpl`
+  - `windows.task.xml.tmpl`
+- Added reusable renderer module + CLI:
+  - `apps/desktop/main/service_install_templates.js`
+  - `apps/desktop/main/render_service_template.js`
+- Added installer helpers:
+  - `scripts/background_service/install_linux_user_service.sh`
+  - `scripts/background_service/uninstall_linux_user_service.sh`
+  - `scripts/background_service/install_macos_launchagent.sh`
+  - `scripts/background_service/uninstall_macos_launchagent.sh`
+  - `scripts/background_service/install_windows_task.ps1`
+  - `scripts/background_service/uninstall_windows_task.ps1`
+- Added unit coverage for template rendering behavior:
+  - `apps/desktop/main/service_install_templates.test.js`

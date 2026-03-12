@@ -10,7 +10,18 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -e . pyinstaller
 
-pyinstaller --clean --noconfirm smap_service.spec
+SPEC_PATH="$SERVICE_DIR/smap_service.spec"
+if [[ ! -f "$SPEC_PATH" ]]; then
+  echo "Expected spec file not found at $SPEC_PATH" >&2
+  exit 1
+fi
+
+pyinstaller \
+  --clean \
+  --noconfirm \
+  "$SPEC_PATH" \
+  --workpath "$SERVICE_DIR/build" \
+  --distpath "$SERVICE_DIR/dist"
 
 mkdir -p dist
 if [[ -f dist/smap-service ]]; then

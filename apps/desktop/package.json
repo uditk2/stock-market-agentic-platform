@@ -25,12 +25,17 @@
       "main/**/*",
       "preload/**/*",
       "renderer/**/*",
+      "resources/**/*",
       "package.json"
     ],
     "extraResources": [
       {
         "from": "../service/dist/",
         "to": "service"
+      },
+      {
+        "from": "../../scripts/background_service/",
+        "to": "background_service"
       }
     ],
     "mac": {

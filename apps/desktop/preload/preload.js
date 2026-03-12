@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('smapBridge', {
   serviceStatus: () => ipcRenderer.invoke('service-status'),
   serviceStart: () => ipcRenderer.invoke('service-start'),
   serviceStop: () => ipcRenderer.invoke('service-stop'),
+  backgroundServiceStatus: () => ipcRenderer.invoke('background-service-status'),
+  backgroundServiceInstall: () => ipcRenderer.invoke('background-service-install'),
   terminalProfiles: () => ipcRenderer.invoke('terminal-profiles'),
   terminalStart: (options) => ipcRenderer.invoke('terminal-start', options),
   terminalStop: () => ipcRenderer.invoke('terminal-stop'),

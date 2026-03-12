@@ -229,6 +229,19 @@ Acceptance target:
 - Packaged installer runtime can start service by launching desktop only (assuming bundled service artifact exists).
 
 Delivered implementation:
+- Desktop startup now resolves service launch path using deterministic order:
+  - `SMAP_SERVICE_BIN` override
+  - bundled installer resource binary
+  - local repo `apps/service/dist` binary
+  - Python uvicorn fallback
+- Wizard now includes background-service checks and an install action.
+- Wizard installation path is native and platform-aware in main process:
+  - Linux: writes systemd user unit + enables/starts via `systemctl --user`
+  - macOS: writes LaunchAgent plist + loads via `launchctl`
+  - Windows: writes Task Scheduler XML + creates/runs task via `schtasks`
+- Added desktop tests for background-service status probing and resolver behavior.
+
+Delivered implementation:
 - Added `main/service_runtime.js` resolver module with deterministic precedence:
   1. `SMAP_SERVICE_BIN` override
   2. bundled packaged resource binary

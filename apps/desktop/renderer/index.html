@@ -93,9 +93,22 @@
               <span id="wizardBadge" class="badge text-bg-warning">Pending</span>
             </div>
             <p class="small text-secondary mb-2">
-              Mandatory checks before workspace unlock: Codex CLI and Claude CLI install, version probe, and auth/session probe.
+              Mandatory checks before workspace unlock: Codex CLI + Claude CLI readiness and background service installation.
             </p>
             <div id="wizardChecks" class="small mb-3 text-secondary">No checks run yet.</div>
+            <div id="wizardServiceStatus" class="small mb-3 text-secondary">
+              Background service status: unknown.
+            </div>
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+              <button class="btn btn-outline-primary btn-sm" id="wizardInstallServiceBtn">
+                <i class="bi bi-hdd-network"></i>
+                Install Background Service
+              </button>
+              <button class="btn btn-outline-secondary btn-sm" id="wizardRefreshServiceBtn">
+                <i class="bi bi-arrow-repeat"></i>
+                Refresh Service Check
+              </button>
+            </div>
             <button class="btn btn-warning" id="wizardRunBtn">
               <i class="bi bi-shield-check"></i>
               Run Mandatory Checks
@@ -267,6 +280,7 @@
       const API_BASE = "http://127.0.0.1:8787";
       const hasBridge = Boolean(window.smapBridge && window.smapBridge.serviceStatus);
       const hasWizardBridge = Boolean(window.smapBridge && window.smapBridge.cliChecks);
+      const hasBackgroundBridge = Boolean(window.smapBridge && window.smapBridge.backgroundServiceStatus);
       const hasTerminalBridge = Boolean(window.smapBridge && window.smapBridge.terminalStart);
       const toast = new bootstrap.Toast(document.getElementById("toast"), { delay: 2200 });
       let currentDetail = null;
@@ -278,6 +292,9 @@
         const controls = document.querySelectorAll("button, input, select, textarea");
         controls.forEach((el) => {
           if (el.id === "wizardRunBtn") {
+            return;
+          }
+          if (el.id === "wizardInstallServiceBtn" || el.id === "wizardRefreshServiceBtn") {
             return;
           }
           if (locked) {
@@ -293,7 +310,19 @@
         });
       }
 
-      function renderWizardChecks(payload) {
+      function renderBackgroundStatus(status) {
+        const container = document.getElementById("wizardServiceStatus");
+        if (!status || !status.supported) {
+          container.innerHTML = `<span class=\"wizard-fail\">Background service checks unavailable in this runtime.</span>`;
+          return false;
+        }
+        const pass = Boolean(status.installed);
+        const className = pass ? "wizard-pass" : "wizard-fail";
+        container.innerHTML = `<span class=\"${className}\">Background service (${status.manager}): installed=${status.installed} running=${status.running}</span>`;
+        return pass;
+      }
+
+      function renderWizardChecks(payload, backgroundReady) {
         const badge = document.getElementById("wizardBadge");
         const container = document.getElementById("wizardChecks");
         if (!payload || !payload.checks) {
@@ -310,7 +339,7 @@
           })
           .join("");
         container.innerHTML = rows;
-        if (payload.ok) {
+        if (payload.ok && backgroundReady) {
           badge.className = "badge text-bg-success";
           badge.innerText = "Ready";
           setWorkspaceLocked(false);
@@ -335,16 +364,33 @@
               },
             ],
           });
+          renderBackgroundStatus(null);
           showToast("Wizard checks are available only inside Electron.");
           return;
         }
         const payload = await window.smapBridge.cliChecks();
-        renderWizardChecks(payload);
-        if (payload.ok) {
+        const bgStatus = hasBackgroundBridge ? await window.smapBridge.backgroundServiceStatus() : null;
+        const backgroundReady = renderBackgroundStatus(bgStatus);
+        renderWizardChecks(payload, backgroundReady);
+        if (payload.ok && backgroundReady) {
           showToast("Wizard checks passed. Workspace unlocked.");
         } else {
-          showToast("Wizard checks failed. Complete CLI setup to continue.");
+          showToast("Wizard checks failed. Complete CLI setup and background service install to continue.");
         }
+      }
+
+      async function installBackgroundServiceFromWizard() {
+        if (!hasBackgroundBridge || !window.smapBridge.backgroundServiceInstall) {
+          showToast("Background service installer is available only inside Electron.");
+          return;
+        }
+        const result = await window.smapBridge.backgroundServiceInstall();
+        if (!result.ok) {
+          showToast(`Background install failed: ${result.stderr || "unknown error"}`);
+          return;
+        }
+        showToast("Background service installed. Re-running wizard checks...");
+        await runWizardChecks();
       }
 
       function showToast(text) {
@@ -624,6 +670,8 @@
         }
       });
       document.getElementById("wizardRunBtn").addEventListener("click", runWizardChecks);
+      document.getElementById("wizardInstallServiceBtn").addEventListener("click", installBackgroundServiceFromWizard);
+      document.getElementById("wizardRefreshServiceBtn").addEventListener("click", runWizardChecks);
       if (hasTerminalBridge) {
         window.smapBridge.onTerminalOutput((chunk) => appendTerminalOutput(chunk));
         window.smapBridge.onTerminalExit(() => {
@@ -638,6 +686,10 @@
         if (!hasBridge) {
           document.getElementById("startServiceBtn").dataset.forceDisabled = "1";
           document.getElementById("stopServiceBtn").dataset.forceDisabled = "1";
+        }
+        if (!hasBackgroundBridge) {
+          document.getElementById("wizardInstallServiceBtn").dataset.forceDisabled = "1";
+          document.getElementById("wizardRefreshServiceBtn").dataset.forceDisabled = "1";
         }
         if (!hasTerminalBridge) {
           document.getElementById("terminalStartBtn").dataset.forceDisabled = "1";

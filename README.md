@@ -10,6 +10,14 @@ Modular desktop platform scaffold for NSE F&O signal/recommendation workflows.
 
 ## Quick Start
 
+### Installer Runtime (Preferred)
+1. Install SMAP Desktop package for your OS.
+2. Launch desktop app.
+3. In Setup Wizard:
+- run mandatory CLI checks
+- use `Install Background Service` when prompted
+4. After wizard passes, workspace unlocks and service is managed without manual service-install commands.
+
 ### Service
 ```bash
 cd apps/service

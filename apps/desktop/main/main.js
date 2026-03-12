@@ -5,10 +5,12 @@ const pty = require('node-pty');
 const { PROFILES, isCommandAllowed } = require('./terminal_profiles');
 const { runMandatoryCliChecks } = require('./cli_checks');
 const { resolveServiceLaunch } = require('./service_runtime');
+const { getBackgroundServiceStatus, installBackgroundService } = require('./background_service_manager');
 
 let mainWindow;
 let serviceProc;
 let terminalSession;
+let activeServiceLaunch;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -32,6 +34,7 @@ function startService() {
     resourcesPath: process.resourcesPath,
     repoRoot,
   });
+  activeServiceLaunch = launch;
 
   serviceProc = spawn(launch.command, launch.args, { shell: false });
   console.log(`[SMAP] service launch mode=${launch.mode} source=${launch.source} command=${launch.command}`);
@@ -110,7 +113,10 @@ app.on('window-all-closed', () => {
   }
 });
 
-ipcMain.handle('service-status', () => ({ running: !!serviceProc }));
+ipcMain.handle('service-status', () => ({
+  running: !!serviceProc,
+  launch: activeServiceLaunch || null,
+}));
 ipcMain.handle('service-stop', () => {
   stopService();
   return { ok: true };
@@ -120,6 +126,27 @@ ipcMain.handle('service-start', () => {
   return { ok: true };
 });
 ipcMain.handle('cli-checks', () => runMandatoryCliChecks());
+ipcMain.handle('background-service-status', async () =>
+  getBackgroundServiceStatus({
+    platform: process.platform,
+  }),
+);
+ipcMain.handle('background-service-install', async () => {
+  const repoRoot = path.resolve(__dirname, '..', '..', '..');
+  const launch = resolveServiceLaunch({
+    env: process.env,
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    repoRoot,
+  });
+  return installBackgroundService(launch, {
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    mainDir: __dirname,
+  });
+});
 
 ipcMain.handle('terminal-profiles', () => ({
   items: Object.entries(PROFILES).map(([key, value]) => ({

@@ -17,6 +17,7 @@ build/
 *.dmg
 *.AppImage
 *.deb
+!apps/service/smap_service.spec
 
 # OS
 .DS_Store

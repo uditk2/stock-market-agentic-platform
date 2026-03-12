@@ -20,3 +20,9 @@ Finalize build hardening, integration checks, and issue-tracking sync.
 - Applied build hardening fix:
   - Updated `scripts/build_service.sh` to use deterministic absolute spec path and explicit work/dist paths.
   - Added fast-fail guard when spec path is missing.
+- Follow-up root causes after first rerun:
+  - `apps/service/smap_service.spec` was not tracked due `*.spec` gitignore rule.
+  - Windows bash path failed on `.venv/bin/activate`.
+- Additional hardening fix:
+  - Added gitignore allowlist for `apps/service/smap_service.spec`.
+  - Removed shell `source` dependency and switched to cross-platform venv python invocation.

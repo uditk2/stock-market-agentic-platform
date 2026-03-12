@@ -6,9 +6,18 @@ SERVICE_DIR="$ROOT_DIR/apps/service"
 
 cd "$SERVICE_DIR"
 python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -e . pyinstaller
+
+if [[ -x ".venv/bin/python" ]]; then
+  VENV_PYTHON=".venv/bin/python"
+elif [[ -x ".venv/Scripts/python.exe" ]]; then
+  VENV_PYTHON=".venv/Scripts/python.exe"
+else
+  echo "Unable to locate venv python executable." >&2
+  exit 1
+fi
+
+"$VENV_PYTHON" -m pip install --upgrade pip
+"$VENV_PYTHON" -m pip install -e . pyinstaller
 
 SPEC_PATH="$SERVICE_DIR/smap_service.spec"
 if [[ ! -f "$SPEC_PATH" ]]; then
@@ -16,7 +25,7 @@ if [[ ! -f "$SPEC_PATH" ]]; then
   exit 1
 fi
 
-pyinstaller \
+"$VENV_PYTHON" -m PyInstaller \
   --clean \
   --noconfirm \
   "$SPEC_PATH" \

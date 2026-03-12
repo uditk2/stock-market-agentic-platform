@@ -101,6 +101,39 @@ test('runMandatoryCliChecks supports subscription scope', () => {
   assert.equal(result.checks[0].id, 'codex');
 });
 
+test('checkSingleCli passes for Claude when version probe succeeds', () => {
+  const runner = makeRunner({
+    'claude --version': {
+      success: true,
+      stdout: 'claude 1.0.0',
+      stderr: '',
+      exitCode: 0,
+      error: null,
+    },
+  });
+  const result = checkSingleCli(
+    {
+      id: 'claude',
+      label: 'Claude CLI',
+      binary: 'claude',
+      authCandidates: [],
+    },
+    runner,
+  );
+  assert.equal(result.installed, true);
+  assert.equal(result.pass, true);
+});
+
+test('runMandatoryCliChecks supports claude-only scope', () => {
+  const runner = makeRunner({
+    'claude --version': { success: true, stdout: 'claude 1.0.0', stderr: '', exitCode: 0, error: null },
+  });
+  const result = runMandatoryCliChecks({ requiredCliIds: ['claude'] }, runner);
+  assert.equal(result.ok, true);
+  assert.equal(result.checks.length, 1);
+  assert.equal(result.checks[0].id, 'claude');
+});
+
 test('buildCommandEnv augments PATH with common binary locations', () => {
   const env = buildCommandEnv({ PATH: '/usr/bin:/bin' });
   assert.match(env.PATH, /\/usr\/local\/bin/);

@@ -38,3 +38,10 @@ Finalize build hardening, integration checks, and issue-tracking sync.
     - `windows-latest`
     - `ubuntu-latest`
     - `macos-latest`
+- Added proactive failure handling automation:
+  - New workflow `.github/workflows/ci-failure-guardian.yml`.
+  - Trigger: `workflow_run` completion for `Build Installers` with `conclusion == failure`.
+  - Actions:
+    - Ensure `ci-failure` label exists.
+    - Create/update a single `CI Failure Tracker` issue and append failure run details.
+    - Optionally send Telegram alert when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` secrets are configured.

@@ -1,0 +1,101 @@
+name: CI Failure Guardian
+
+on:
+  workflow_run:
+    workflows:
+      - Build Installers
+    types:
+      - completed
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  handle-failure:
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure failure label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create ci-failure \
+            --description "Automated CI failure tracker" \
+            --color D73A4A || true
+
+      - name: Find open tracker issue
+        id: tracker
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_NUMBER="$(gh issue list \
+            --state open \
+            --search 'in:title CI Failure Tracker' \
+            --json number \
+            --jq '.[0].number // ""')"
+          echo "issue_number=${ISSUE_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Create tracker issue when missing
+        if: ${{ steps.tracker.outputs.issue_number == '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue create \
+            --title "CI Failure Tracker" \
+            --label "ci-failure" \
+            --body "Automated tracker for failed CI workflow runs."
+
+      - name: Refresh tracker issue number
+        id: tracker_refreshed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ISSUE_NUMBER="$(gh issue list \
+            --state open \
+            --search 'in:title CI Failure Tracker' \
+            --json number \
+            --jq '.[0].number // ""')"
+          echo "issue_number=${ISSUE_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Append failure details to tracker issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ steps.tracker_refreshed.outputs.issue_number }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRIGGERING_ACTOR: ${{ github.event.workflow_run.actor.login }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body-file - <<EOF
+          CI failure detected.
+
+          - Workflow: $WORKFLOW_NAME
+          - Branch: $HEAD_BRANCH
+          - Commit: $HEAD_SHA
+          - Triggered by: $TRIGGERING_ACTOR
+          - Run ID: $RUN_ID
+          - Run URL: $RUN_URL
+
+          Suggested next action:
+          1. Inspect failed job logs in the run URL.
+          2. Push fix and monitor until all matrix jobs are green.
+          EOF
+
+      - name: Send Telegram alert (optional)
+        if: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != '' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=CI failure in ${WORKFLOW_NAME} on ${HEAD_BRANCH} (${HEAD_SHA:0:8}). Run: ${RUN_URL}" \
+            > /dev/null

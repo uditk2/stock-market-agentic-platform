@@ -42,3 +42,7 @@ Implement W2 provider/feed UX + credential persistence and W6 connector baseline
   - validation failures returned as structured 400 API responses
   - connector diagnostics endpoint for market/news readiness snapshot
   - test suite expanded and passing
+- W2 UX polish delivered:
+  - Bootstrap 5 + Bootstrap Icons based interface refresh
+  - standardized cards/forms/tabs/toasts patterns
+  - improved recommendation list/detail interaction and validation feedback

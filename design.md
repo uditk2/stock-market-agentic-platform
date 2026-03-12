@@ -78,6 +78,12 @@ Final W2 locks:
 - Credential storage in SQLite: `B` encrypted-at-rest.
 - Daily page scope: `2A` recommendations + search only in W2.
 - Recommendation ordering default: `3A` confidence score (descending).
+- Interface polish direction: industry-standard UX patterns with established component libraries.
+
+W2 UX polish delivered:
+- Bootstrap 5-based design system for layout, forms, list patterns, tabs, and feedback toasts.
+- Bootstrap Icons for consistent action/status affordances.
+- Recommendations workflow improved with active list state, keyboard-search behavior, and clearer detail hierarchy.
 
 ## 8. W6 Connector Baseline (Slice 1, March 2026)
 Implemented baseline connector layer with retry/backoff and normalized output contracts:

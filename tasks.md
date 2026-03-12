@@ -44,6 +44,7 @@
 - Implement recommendations-first daily view with:
   - instrument search bar
   - click-through recommendation details in tabbed rationale view (news, technicals, strategy).
+- Polish interface with industry-standard UX patterns and library-backed components.
 
 3. W3 Mandatory AI CLI Wizard Enforcement
 - Implement executable detection, version check, and auth/session checks for Codex/Claude CLIs.

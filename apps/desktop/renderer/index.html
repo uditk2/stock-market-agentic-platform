@@ -1,105 +1,226 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SMAP Desktop</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
     <style>
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 20px; color: #1c2630; }
-      .row { margin: 10px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-      .panel { border: 1px solid #d5dde5; border-radius: 8px; padding: 12px; margin-top: 16px; background: #f8fbfd; }
-      button { margin-right: 8px; }
-      code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
-      .layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
-      .list { max-height: 300px; overflow: auto; border: 1px solid #d5dde5; border-radius: 6px; background: #fff; }
-      .list-item { padding: 10px; border-bottom: 1px solid #eef2f7; cursor: pointer; }
-      .list-item:hover { background: #f4f8ff; }
-      .list-item:last-child { border-bottom: none; }
-      .muted { color: #5f7080; }
-      input, select, textarea { padding: 8px; border: 1px solid #c8d3df; border-radius: 6px; min-width: 240px; }
-      textarea { width: 100%; min-height: 80px; font-family: monospace; }
-      .tab-bar { display: flex; gap: 8px; margin-bottom: 8px; }
-      .tab-bar button { margin-right: 0; }
-      .active { background: #1f6feb; color: #fff; border-color: #1f6feb; }
-      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #e9f1ff; color: #1f6feb; font-size: 12px; }
+      :root {
+        --smap-surface: #f4f7fb;
+        --smap-card: #ffffff;
+        --smap-border: #dce3ed;
+      }
+      body {
+        background: linear-gradient(160deg, #f9fbfe 0%, #edf3fb 100%);
+        min-height: 100vh;
+      }
+      .app-shell {
+        max-width: 1260px;
+      }
+      .glass-nav {
+        background: rgba(255, 255, 255, 0.88);
+        border: 1px solid var(--smap-border);
+        backdrop-filter: blur(6px);
+      }
+      .card {
+        border: 1px solid var(--smap-border);
+        box-shadow: 0 8px 20px rgba(19, 33, 68, 0.06);
+      }
+      .recommendation-list {
+        max-height: 520px;
+        overflow-y: auto;
+      }
+      .list-group-item {
+        border: 0;
+        border-bottom: 1px solid #eef2f8;
+      }
+      .list-group-item:last-child {
+        border-bottom: 0;
+      }
+      .confidence-badge {
+        min-width: 84px;
+      }
+      .tab-content {
+        min-height: 220px;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
     </style>
   </head>
   <body>
-    <h1>SMAP Desktop - W2 Workspace</h1>
-    <div class="panel">
-      <h3>Provider Setup</h3>
-      <div class="row">
-        <label for="providerSelect">Broker</label>
-        <select id="providerSelect"></select>
-        <button id="loadProvider">Load Status</button>
-      </div>
-      <div class="row">
-        <label for="providerCreds">Credentials JSON</label>
-      </div>
-      <textarea id="providerCreds" placeholder='{"api_key":"...","api_secret":"..."}'></textarea>
-      <div class="row">
-        <button id="saveProvider">Save Provider Credentials</button>
-        <span id="providerStatus" class="muted">Not saved</span>
-      </div>
-    </div>
-
-    <div class="panel">
-      <h3>Background Service Control</h3>
-      <div class="row">
-        <button id="refresh">Refresh Status</button>
-        <button id="start">Start Service</button>
-        <button id="stop">Stop Service</button>
-      </div>
-      <div class="row" id="status">Service status: unknown</div>
-    </div>
-
-    <div class="panel">
-      <h3>Recommendations</h3>
-      <div class="row">
-        <input id="searchInput" placeholder="Search F&O symbol (e.g. RELIANCE)" />
-        <button id="searchBtn">Search</button>
-        <span class="pill">Default sort: confidence</span>
-      </div>
-      <div class="layout">
-        <div>
-          <div id="recommendationsList" class="list"></div>
-        </div>
-        <div>
-          <h4 id="detailTitle">Select a recommendation</h4>
-          <div class="tab-bar">
-            <button data-tab="news" class="tab-btn active">News</button>
-            <button data-tab="technicals" class="tab-btn">Technicals</button>
-            <button data-tab="strategy" class="tab-btn">Strategy</button>
+    <main class="container-fluid py-3 app-shell">
+      <div class="d-flex flex-column gap-3">
+        <nav class="navbar rounded-4 glass-nav px-3 py-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-graph-up-arrow text-primary"></i>
+            <span class="fw-semibold">SMAP Desktop</span>
+            <span class="text-secondary">W2 Workspace</span>
           </div>
-          <div id="detailBody" class="muted">Details will appear here.</div>
+          <div class="d-flex align-items-center gap-2">
+            <span id="serviceBadge" class="badge text-bg-secondary">Service: unknown</span>
+            <button class="btn btn-sm btn-outline-secondary" id="refreshServiceBtn">
+              <i class="bi bi-arrow-clockwise"></i>
+              Refresh
+            </button>
+            <button class="btn btn-sm btn-outline-success" id="startServiceBtn">Start</button>
+            <button class="btn btn-sm btn-outline-danger" id="stopServiceBtn">Stop</button>
+          </div>
+        </nav>
+
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <div class="card h-100 rounded-4">
+              <div class="card-body">
+                <h5 class="card-title mb-3">Broker Configuration</h5>
+                <div class="mb-3">
+                  <label class="form-label" for="providerSelect">Broker Provider</label>
+                  <div class="input-group">
+                    <select class="form-select" id="providerSelect"></select>
+                    <button class="btn btn-outline-secondary" id="loadProviderBtn">Reload</button>
+                  </div>
+                  <div id="providerHelp" class="form-text">
+                    Credentials are encrypted at rest in local SQLite.
+                  </div>
+                </div>
+
+                <div class="mb-2">
+                  <label class="form-label" for="providerCreds">Credentials JSON</label>
+                  <textarea class="form-control font-monospace" id="providerCreds" rows="7"></textarea>
+                </div>
+                <div id="requiredFields" class="small text-secondary mb-3"></div>
+
+                <div class="d-flex align-items-center gap-2">
+                  <button class="btn btn-primary" id="saveProviderBtn">
+                    <i class="bi bi-shield-lock"></i>
+                    Save Credentials
+                  </button>
+                  <span id="providerStatus" class="text-secondary small">Not saved</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-lg-8">
+            <div class="card rounded-4">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                  <h5 class="card-title m-0">Recommendations</h5>
+                  <span class="badge text-bg-primary-subtle border">Default sort: Confidence</span>
+                </div>
+
+                <div class="input-group mb-3">
+                  <span class="input-group-text"><i class="bi bi-search"></i></span>
+                  <input
+                    id="searchInput"
+                    class="form-control"
+                    placeholder="Search F&O symbol (example: RELIANCE)"
+                  />
+                  <button class="btn btn-outline-primary" id="searchBtn">Search</button>
+                </div>
+
+                <div class="row g-3">
+                  <div class="col-md-5">
+                    <div class="list-group recommendation-list rounded-3" id="recommendationsList"></div>
+                  </div>
+                  <div class="col-md-7">
+                    <div class="border rounded-3 p-3 h-100 bg-light-subtle">
+                      <h6 id="detailTitle" class="mb-3">Select a recommendation</h6>
+
+                      <ul class="nav nav-tabs mb-3" id="detailTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-news" type="button">
+                            News
+                          </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-technicals" type="button">
+                            Technicals
+                          </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                          <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-strategy" type="button">
+                            Strategy
+                          </button>
+                        </li>
+                      </ul>
+                      <div class="tab-content">
+                        <div class="tab-pane fade show active" id="tab-news"></div>
+                        <div class="tab-pane fade" id="tab-technicals"></div>
+                        <div class="tab-pane fade" id="tab-strategy"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
+      <div id="toast" class="toast align-items-center border-0 text-bg-dark" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+          <div class="toast-body" id="toastText">Ready.</div>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
         </div>
       </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-      const API_BASE = 'http://127.0.0.1:8787';
+      const API_BASE = "http://127.0.0.1:8787";
+      const toast = new bootstrap.Toast(document.getElementById("toast"), { delay: 2200 });
       let currentDetail = null;
-      let activeTab = 'news';
+
+      function showToast(text) {
+        document.getElementById("toastText").innerText = text;
+        toast.show();
+      }
 
       async function api(path, options = {}) {
         const response = await fetch(`${API_BASE}${path}`, {
-          headers: { 'Content-Type': 'application/json' },
-          ...options
+          headers: { "Content-Type": "application/json" },
+          ...options,
         });
-        return response.json();
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.detail?.error || payload?.detail || "Request failed");
+        }
+        return payload;
       }
 
-      async function refresh() {
+      async function refreshServiceStatus() {
         const status = await window.smapBridge.serviceStatus();
-        document.getElementById('status').innerText = `Service status: ${status.running ? 'running' : 'stopped'}`;
+        const badge = document.getElementById("serviceBadge");
+        badge.className = status.running ? "badge text-bg-success" : "badge text-bg-danger";
+        badge.innerText = `Service: ${status.running ? "running" : "stopped"}`;
+      }
+
+      async function getRequiredSchema(provider) {
+        const payload = await api(`/providers/brokers/schema/${provider}`);
+        const required = payload.required_fields || [];
+        document.getElementById("requiredFields").innerText =
+          required.length ? `Required fields: ${required.join(", ")}` : "No required fields.";
+        return required;
       }
 
       async function loadProviders() {
-        const payload = await api('/providers/brokers');
-        const select = document.getElementById('providerSelect');
-        select.innerHTML = '';
+        const payload = await api("/providers/brokers");
+        const select = document.getElementById("providerSelect");
+        select.innerHTML = "";
         payload.items.forEach((provider) => {
-          const option = document.createElement('option');
+          const option = document.createElement("option");
           option.value = provider;
           option.innerText = provider;
           select.appendChild(option);
@@ -107,84 +228,136 @@
         if (payload.selected_provider) {
           select.value = payload.selected_provider;
         }
-        document.getElementById('providerStatus').innerText =
-          payload.has_credentials ? `Saved (${payload.selected_provider})` : 'No credentials saved';
+        await getRequiredSchema(select.value);
+        document.getElementById("providerStatus").innerText =
+          payload.has_credentials ? `Saved for ${payload.selected_provider}` : "No credentials saved";
       }
 
       async function saveProvider() {
-        const provider = document.getElementById('providerSelect').value;
-        const raw = document.getElementById('providerCreds').value.trim();
+        const provider = document.getElementById("providerSelect").value;
+        const raw = document.getElementById("providerCreds").value.trim();
         let credentials = {};
         if (raw) {
           try {
             credentials = JSON.parse(raw);
-          } catch (err) {
-            document.getElementById('providerStatus').innerText = 'Invalid JSON';
+          } catch {
+            showToast("Credentials JSON is invalid.");
             return;
           }
         }
-        const payload = await api('/providers/brokers/selection', {
-          method: 'PUT',
-          body: JSON.stringify({ provider, credentials })
-        });
-        document.getElementById('providerStatus').innerText =
-          payload.ok ? `Saved (${payload.selected_provider})` : 'Save failed';
+        try {
+          const payload = await api("/providers/brokers/selection", {
+            method: "PUT",
+            body: JSON.stringify({ provider, credentials }),
+          });
+          document.getElementById("providerStatus").innerText = `Saved for ${payload.selected_provider}`;
+          showToast("Provider credentials saved.");
+        } catch (error) {
+          showToast(`Save failed: ${error.message}`);
+        }
+      }
+
+      function recommendationRow(item, onClick) {
+        const element = document.createElement("button");
+        element.type = "button";
+        element.className = "list-group-item list-group-item-action";
+        element.innerHTML = `
+          <div class="d-flex w-100 justify-content-between">
+            <strong>${item.symbol}</strong>
+            <span class="badge bg-secondary-subtle text-secondary-emphasis confidence-badge">${item.confidence}</span>
+          </div>
+          <div class="small text-secondary mt-1">${item.summary}</div>
+          <div class="small mt-1 text-${item.direction === "long" ? "success" : "danger"}">${item.direction.toUpperCase()}</div>
+        `;
+        element.addEventListener("click", onClick);
+        return element;
+      }
+
+      function renderTab(tabId, rows) {
+        const target = document.getElementById(tabId);
+        if (!rows || !rows.length) {
+          target.innerHTML = `<p class="text-secondary small">No signals available.</p>`;
+          return;
+        }
+        target.innerHTML = `<ul class="mb-0">${rows.map((row) => `<li>${row}</li>`).join("")}</ul>`;
+      }
+
+      function renderDetail() {
+        if (!currentDetail) {
+          document.getElementById("detailTitle").innerText = "Select a recommendation";
+          renderTab("tab-news", []);
+          renderTab("tab-technicals", []);
+          renderTab("tab-strategy", []);
+          return;
+        }
+        document.getElementById("detailTitle").innerText =
+          `${currentDetail.symbol} | ${currentDetail.direction.toUpperCase()} | Confidence ${currentDetail.confidence}`;
+        renderTab("tab-news", currentDetail.tabs?.news || []);
+        renderTab("tab-technicals", currentDetail.tabs?.technicals || []);
+        renderTab("tab-strategy", currentDetail.tabs?.strategy || []);
       }
 
       async function loadRecommendations() {
-        const query = document.getElementById('searchInput').value.trim();
-        const payload = await api(`/recommendations${query ? `?query=${encodeURIComponent(query)}` : ''}`);
-        const container = document.getElementById('recommendationsList');
-        container.innerHTML = '';
+        const query = document.getElementById("searchInput").value.trim();
+        const payload = await api(`/recommendations${query ? `?query=${encodeURIComponent(query)}` : ""}`);
+        const container = document.getElementById("recommendationsList");
+        container.innerHTML = "";
         payload.items.forEach((item) => {
-          const div = document.createElement('div');
-          div.className = 'list-item';
-          div.innerHTML = `<strong>${item.symbol}</strong> (${item.direction})<br/><span class="muted">${item.summary}</span><br/><span class="muted">confidence: ${item.confidence}</span>`;
-          div.addEventListener('click', () => loadRecommendationDetail(item.recommendation_id));
-          container.appendChild(div);
+          container.appendChild(
+            recommendationRow(item, async () => {
+              const detail = await api(`/recommendations/${item.recommendation_id}`);
+              if (!detail.ok) {
+                showToast("Recommendation detail unavailable.");
+                return;
+              }
+              currentDetail = detail;
+              renderDetail();
+            }),
+          );
         });
-      }
-
-      async function loadRecommendationDetail(id) {
-        currentDetail = await api(`/recommendations/${id}`);
-        if (!currentDetail.ok) {
-          document.getElementById('detailTitle').innerText = 'Recommendation not found';
-          document.getElementById('detailBody').innerText = '';
-          return;
+        if (!payload.items.length) {
+          container.innerHTML = `<div class="list-group-item text-secondary">No recommendations found.</div>`;
         }
-        document.getElementById('detailTitle').innerText =
-          `${currentDetail.symbol} (${currentDetail.direction}) - confidence ${currentDetail.confidence}`;
-        renderTabs();
       }
 
-      function renderTabs() {
-        const detailBody = document.getElementById('detailBody');
-        if (!currentDetail) {
-          detailBody.innerText = 'Details will appear here.';
-          return;
+      document.getElementById("refreshServiceBtn").addEventListener("click", refreshServiceStatus);
+      document.getElementById("startServiceBtn").addEventListener("click", async () => {
+        await window.smapBridge.serviceStart();
+        await refreshServiceStatus();
+        showToast("Service started.");
+      });
+      document.getElementById("stopServiceBtn").addEventListener("click", async () => {
+        await window.smapBridge.serviceStop();
+        await refreshServiceStatus();
+        showToast("Service stopped.");
+      });
+      document.getElementById("providerSelect").addEventListener("change", (event) => {
+        getRequiredSchema(event.target.value);
+      });
+      document.getElementById("loadProviderBtn").addEventListener("click", async () => {
+        await loadProviders();
+        showToast("Provider state refreshed.");
+      });
+      document.getElementById("saveProviderBtn").addEventListener("click", saveProvider);
+      document.getElementById("searchBtn").addEventListener("click", loadRecommendations);
+      document.getElementById("searchInput").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          loadRecommendations();
         }
-        const rows = currentDetail.tabs[activeTab] || [];
-        detailBody.innerHTML = rows.map((row) => `<div>- ${row}</div>`).join('');
-      }
-
-      document.getElementById('refresh').addEventListener('click', refresh);
-      document.getElementById('start').addEventListener('click', async () => { await window.smapBridge.serviceStart(); refresh(); });
-      document.getElementById('stop').addEventListener('click', async () => { await window.smapBridge.serviceStop(); refresh(); });
-      document.getElementById('loadProvider').addEventListener('click', loadProviders);
-      document.getElementById('saveProvider').addEventListener('click', saveProvider);
-      document.getElementById('searchBtn').addEventListener('click', loadRecommendations);
-      document.querySelectorAll('.tab-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-          btn.classList.add('active');
-          activeTab = btn.dataset.tab;
-          renderTabs();
-        });
       });
 
-      refresh();
-      loadProviders();
-      loadRecommendations();
+      async function boot() {
+        try {
+          await refreshServiceStatus();
+          await loadProviders();
+          await loadRecommendations();
+          renderDetail();
+          showToast("Workspace ready.");
+        } catch (error) {
+          showToast(`Boot warning: ${error.message}`);
+        }
+      }
+      boot();
     </script>
   </body>
 </html>

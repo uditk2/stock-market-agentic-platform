@@ -20,6 +20,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - W2 credential storage is encrypted-at-rest in local SQLite.
 - W2 home scope is recommendations + search only (watchlist deferred).
 - W2 default recommendation order is confidence descending.
+- W2 interface uses Bootstrap 5 component patterns for consistency and operator usability.
 
 ## Design Alternatives Considered
 1. Monolith (UI + data + scheduling in one process): rejected due to low modularity and restart fragility.
@@ -63,6 +64,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - `main/*` (window lifecycle, service process manager, IPC)
 - `preload/*` (safe IPC bridge)
 - `renderer/*` (wizard, terminal view, scheduler view, recommendation workspace)
+  - Uses Bootstrap cards/nav-tabs/forms/toasts and iconography for standardized UX affordances.
 
 ## Delivery Plan
 - Phase 1 (this run): foundation code scaffolding + modular plugin contracts + background scheduler service + desktop shell + CI packaging workflow.

@@ -58,6 +58,18 @@
 3. Preserve desktop recommendations UX while adding terminal as a separate section.
 4. Add focused tests for command gating and profile behavior where practical.
 
+## Iteration 9 (W3 Wizard Draft)
+1. Add CLI check engine for codex and claude install/version/auth probes.
+2. Expose wizard checks over preload IPC.
+3. Add setup wizard UI section with check results.
+4. Gate workspace controls until wizard passes.
+
+## Iteration 10 (W3 Wizard Refined)
+1. Keep wizard mandatory: no bypass path in baseline W3.
+2. Keep checks deterministic with structured diagnostics payloads.
+3. Add unit coverage for CLI check engine pass/fail scenarios.
+4. Re-run desktop + service tests before marking Issue #3 complete.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -73,6 +85,7 @@
 
 3. W3 Mandatory AI CLI Wizard Enforcement
 - Implement executable detection, version check, and auth/session checks for Codex/Claude CLIs.
+- Status: complete (CLI check engine, preload bridge, mandatory renderer wizard gate, tests).
 
 4. W4 Embedded Terminal Runtime
 - Add PTY-backed terminal panel with safe command profiles and advanced mode toggle.

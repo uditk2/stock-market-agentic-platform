@@ -3,6 +3,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const pty = require('node-pty');
 const { PROFILES, isCommandAllowed } = require('./terminal_profiles');
+const { runMandatoryCliChecks } = require('./cli_checks');
 
 let mainWindow;
 let serviceProc;
@@ -109,6 +110,7 @@ ipcMain.handle('service-start', () => {
   startService();
   return { ok: true };
 });
+ipcMain.handle('cli-checks', () => runMandatoryCliChecks());
 
 ipcMain.handle('terminal-profiles', () => ({
   items: Object.entries(PROFILES).map(([key, value]) => ({

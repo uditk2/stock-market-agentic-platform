@@ -147,3 +147,17 @@ Delivered implementation:
 - Explicit advanced-mode toggle added to permit unrestricted command entry when intentionally enabled.
 - Preload bridge now exposes terminal APIs and output/exit subscriptions.
 - Renderer now includes an embedded terminal panel with profile selection, mode toggle, output console, and command input.
+
+## 10. W3 Mandatory AI CLI Wizard Enforcement (March 2026)
+Objective:
+- Block workspace usage until required AI CLIs are installed, version-detected, and authenticated.
+
+Delivered implementation:
+- Added main-process CLI check engine (`main/cli_checks.js`) with mandatory probes for:
+  - install/availability (`--version`)
+  - version extraction
+  - auth/session checks (candidate commands per CLI)
+- Added preload bridge method `cliChecks`.
+- Added renderer setup wizard card with mandatory check execution and status rendering.
+- Added workspace lock gating: all workspace controls remain disabled until wizard checks pass.
+- Added unit tests for CLI check engine behavior.

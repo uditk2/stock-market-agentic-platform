@@ -74,7 +74,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Slice 2B complete: W6 connector baseline (Kotak/NewsAPI/RSS/NSE adapters + diagnostics + attribution observability).
 - Phase 2.5:
   - W4 embedded terminal runtime complete (PTY session manager, profile gating, advanced mode toggle, renderer terminal panel).
-  - W3 wizard enforcement still pending.
+  - W3 wizard enforcement complete (mandatory CLI install/version/auth gating before workspace unlock).
 - Phase 3: recommendation lifecycle, monitoring, backtest, supervised learning.
 
 ## Risks and Open Questions

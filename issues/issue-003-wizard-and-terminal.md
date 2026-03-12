@@ -19,4 +19,9 @@ Implement mandatory AI CLI setup checks and PTY-backed terminal integration.
   - Profile-gated safe command mode with explicit advanced mode toggle
   - Renderer terminal panel integrated into desktop workspace
   - Desktop command-policy tests added and passing
-- W3 wizard enforcement still pending.
+- W3 wizard enforcement delivered:
+  - CLI check engine for Codex and Claude (install, version, auth/session probes)
+  - preload bridge method for mandatory wizard checks
+  - renderer setup wizard card with pass/fail diagnostics
+  - workspace lock gating until mandatory checks pass
+  - CLI check unit tests added and passing

@@ -75,11 +75,34 @@
         white-space: pre-wrap;
         word-break: break-word;
       }
+      .wizard-pass {
+        color: #146c43;
+      }
+      .wizard-fail {
+        color: #b02a37;
+      }
     </style>
   </head>
   <body>
     <main class="container-fluid py-3 app-shell">
       <div class="d-flex flex-column gap-3">
+        <div class="card rounded-4 border-warning-subtle">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+              <h5 class="card-title m-0">Setup Wizard</h5>
+              <span id="wizardBadge" class="badge text-bg-warning">Pending</span>
+            </div>
+            <p class="small text-secondary mb-2">
+              Mandatory checks before workspace unlock: Codex CLI and Claude CLI install, version probe, and auth/session probe.
+            </p>
+            <div id="wizardChecks" class="small mb-3 text-secondary">No checks run yet.</div>
+            <button class="btn btn-warning" id="wizardRunBtn">
+              <i class="bi bi-shield-check"></i>
+              Run Mandatory Checks
+            </button>
+          </div>
+        </div>
+
         <nav class="navbar rounded-4 glass-nav px-3 py-2">
           <div class="d-flex align-items-center gap-2">
             <i class="bi bi-graph-up-arrow text-primary"></i>
@@ -243,10 +266,86 @@
     <script>
       const API_BASE = "http://127.0.0.1:8787";
       const hasBridge = Boolean(window.smapBridge && window.smapBridge.serviceStatus);
+      const hasWizardBridge = Boolean(window.smapBridge && window.smapBridge.cliChecks);
       const hasTerminalBridge = Boolean(window.smapBridge && window.smapBridge.terminalStart);
       const toast = new bootstrap.Toast(document.getElementById("toast"), { delay: 2200 });
       let currentDetail = null;
       let terminalStarted = false;
+      let workspaceLocked = true;
+
+      function setWorkspaceLocked(locked) {
+        workspaceLocked = locked;
+        const controls = document.querySelectorAll("button, input, select, textarea");
+        controls.forEach((el) => {
+          if (el.id === "wizardRunBtn") {
+            return;
+          }
+          if (locked) {
+            el.dataset.previousDisabled = el.disabled ? "1" : "0";
+            el.disabled = true;
+            return;
+          }
+          if (el.dataset.forceDisabled === "1") {
+            el.disabled = true;
+            return;
+          }
+          el.disabled = el.dataset.previousDisabled === "1";
+        });
+      }
+
+      function renderWizardChecks(payload) {
+        const badge = document.getElementById("wizardBadge");
+        const container = document.getElementById("wizardChecks");
+        if (!payload || !payload.checks) {
+          badge.className = "badge text-bg-warning";
+          badge.innerText = "Pending";
+          container.innerText = "No checks run yet.";
+          return;
+        }
+        const rows = payload.checks
+          .map((item) => {
+            const statusClass = item.pass ? "wizard-pass" : "wizard-fail";
+            const statusText = item.pass ? "PASS" : "FAIL";
+            return `<div class=\"${statusClass}\">${statusText} | ${item.label} | installed=${item.installed} | version=${item.version || "n/a"} | auth=${item.auth_ok}</div>`;
+          })
+          .join("");
+        container.innerHTML = rows;
+        if (payload.ok) {
+          badge.className = "badge text-bg-success";
+          badge.innerText = "Ready";
+          setWorkspaceLocked(false);
+        } else {
+          badge.className = "badge text-bg-danger";
+          badge.innerText = "Blocked";
+          setWorkspaceLocked(true);
+        }
+      }
+
+      async function runWizardChecks() {
+        if (!hasWizardBridge) {
+          renderWizardChecks({
+            ok: false,
+            checks: [
+              {
+                label: "Electron wizard bridge",
+                pass: false,
+                installed: false,
+                version: null,
+                auth_ok: false,
+              },
+            ],
+          });
+          showToast("Wizard checks are available only inside Electron.");
+          return;
+        }
+        const payload = await window.smapBridge.cliChecks();
+        renderWizardChecks(payload);
+        if (payload.ok) {
+          showToast("Wizard checks passed. Workspace unlocked.");
+        } else {
+          showToast("Wizard checks failed. Complete CLI setup to continue.");
+        }
+      }
 
       function showToast(text) {
         document.getElementById("toastText").innerText = text;
@@ -524,6 +623,7 @@
           sendTerminalCommand();
         }
       });
+      document.getElementById("wizardRunBtn").addEventListener("click", runWizardChecks);
       if (hasTerminalBridge) {
         window.smapBridge.onTerminalOutput((chunk) => appendTerminalOutput(chunk));
         window.smapBridge.onTerminalExit(() => {
@@ -533,16 +633,18 @@
       }
 
       async function boot() {
+        setWorkspaceLocked(true);
+        renderWizardChecks(null);
         if (!hasBridge) {
-          document.getElementById("startServiceBtn").disabled = true;
-          document.getElementById("stopServiceBtn").disabled = true;
+          document.getElementById("startServiceBtn").dataset.forceDisabled = "1";
+          document.getElementById("stopServiceBtn").dataset.forceDisabled = "1";
         }
         if (!hasTerminalBridge) {
-          document.getElementById("terminalStartBtn").disabled = true;
-          document.getElementById("terminalStopBtn").disabled = true;
-          document.getElementById("terminalSendBtn").disabled = true;
-          document.getElementById("terminalInput").disabled = true;
-          document.getElementById("advancedModeToggle").disabled = true;
+          document.getElementById("terminalStartBtn").dataset.forceDisabled = "1";
+          document.getElementById("terminalStopBtn").dataset.forceDisabled = "1";
+          document.getElementById("terminalSendBtn").dataset.forceDisabled = "1";
+          document.getElementById("terminalInput").dataset.forceDisabled = "1";
+          document.getElementById("advancedModeToggle").dataset.forceDisabled = "1";
           document.getElementById("terminalProfile").innerHTML = "<option>preview-only</option>";
           document.getElementById("terminalProfileHelp").innerText =
             "Terminal control is available only in Electron runtime.";
@@ -568,7 +670,8 @@
           showToast(`Terminal warning: ${error.message}`);
         }
         renderDetail();
-        showToast("Workspace ready.");
+        await runWizardChecks();
+        showToast("Workspace boot complete.");
       }
       boot();
     </script>

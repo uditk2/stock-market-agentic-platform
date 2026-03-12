@@ -1,0 +1,8 @@
+{
+  "tasks": [
+    {"id": "W7T-T1", "title": "Define minimal installer artifact contract by OS", "depends_on": []},
+    {"id": "W7T-T2", "title": "Update build-installers workflow upload paths to final outputs only", "depends_on": ["W7T-T1"]},
+    {"id": "W7T-T3", "title": "Update docs/issue artifacts for artifact-trim policy", "depends_on": ["W7T-T2"]},
+    {"id": "W7T-T4", "title": "Push, monitor CI to green, and compare artifact sizes", "depends_on": ["W7T-T3"]}
+  ]
+}

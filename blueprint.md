@@ -99,6 +99,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - AI CLI redistribution/auth flows may vary by provider version.
 - Connector observability payloads can drift if schema discipline is not maintained across future job types.
 - Service manager behaviors differ by OS; scripts must stay user-scope-safe and idempotent.
+- CI artifacts can become large if unpacked build trees are uploaded; artifact policy must stay installer-only.
 
 ### Open Questions (queued for next user window)
 - OQ1: Preferred GitHub repo visibility/name if creating a new remote is required.

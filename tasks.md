@@ -94,6 +94,11 @@
 3. Surface startup diagnostics in logs for easier support.
 4. Re-run desktop + service tests before closing runtime wiring slice.
 
+## Iteration 15 (W7 Artifact Trim Draft)
+1. Remove bulky non-installer outputs from uploaded CI artifacts.
+2. Keep only final installer/update metadata files in `apps/desktop/release`.
+3. Verify post-change artifact size reduction after green CI run.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -137,6 +142,7 @@
 
 7. W7 CI Packaging Hardening
 - Extend GitHub Actions to assemble service+desktop outputs per OS and publish versioned artifacts.
+- Follow-up status: in progress (artifact payload trim to reduce download size).
 
 8. W8 Integration and Ops Readiness
 - Add integration smoke tests, scheduler recovery tests, and updated runbooks.

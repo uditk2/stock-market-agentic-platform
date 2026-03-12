@@ -249,3 +249,12 @@ Delivered implementation:
   4. Python uvicorn fallback
 - Wired desktop startup path to resolver output in `main/main.js`.
 - Added unit coverage in `main/service_runtime.test.js`.
+
+## 13. W7 Artifact Payload Trim (March 2026)
+Objective:
+- Reduce installer download time by publishing only required final installer artifacts from CI.
+
+Chosen approach:
+- Keep build generation unchanged.
+- Narrow GitHub Actions upload globs to final installer/update metadata files under `apps/desktop/release`.
+- Exclude bulky intermediate/unpacked output trees from artifact uploads.

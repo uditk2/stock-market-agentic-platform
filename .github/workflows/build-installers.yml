@@ -47,6 +47,13 @@ jobs:
         with:
           name: smap-installers-${{ matrix.os }}
           path: |
-            apps/desktop/release/**
-            apps/service/dist/**
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.msi
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.yml
+            apps/desktop/release/*.yaml
+            apps/desktop/release/*.blockmap
           if-no-files-found: warn

@@ -197,6 +197,30 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks/open questions:
   - Removing update metadata from uploaded artifacts may be incompatible with future auto-update channel expectations.
 
+### Current Slice: Unsigned macOS Install Recovery
+- Problem statement:
+  - Without notarization credentials, macOS may block launch with quarantine/Gatekeeper messaging.
+- Constraints:
+  - No Apple signing/notarization credentials.
+  - User needs deterministic recovery instructions outside app UI.
+- Design alternatives considered:
+  1. Keep ad-hoc manual guidance in chat only: rejected (not reproducible/self-service).
+  2. Revert to mixed artifact bundle with extra files: rejected (contradicts DMG-only delivery ask).
+  3. Add explicit unblock helper script + README guidance: chosen.
+- Chosen architecture:
+  - Provide repo-shipped helper script:
+    - `scripts/macos/unblock_unsigned_app.sh`
+  - Document both curl one-liner and local script path in README.
+- Interfaces/modules:
+  - `scripts/macos/unblock_unsigned_app.sh`
+  - `README.md`
+- Delivery plan:
+  - Add script and documentation.
+  - Push and validate CI remains green.
+  - Share procedure with user.
+- Risks/open questions:
+  - This remains a workaround until notarization credentials are available.
+
 ## Risks and Open Questions
 ### Risks
 - External API limits and unstable schemas.

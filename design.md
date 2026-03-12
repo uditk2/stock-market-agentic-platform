@@ -234,6 +234,19 @@ Chosen approach:
 - Windows upload path includes only `*.exe` and `*.msi`.
 - Linux upload path includes only `*.AppImage` and `*.deb`.
 
+## 14. macOS Unsigned Runtime Path (No Notarization) (March 2026)
+Objective:
+- Provide a deterministic user recovery path when macOS blocks unsigned app launch.
+
+Design constraints:
+- Apple notarization credentials are unavailable.
+- Keep installer distribution simple (DMG-first).
+- Avoid requiring app launch for first-run unblock guidance.
+
+Chosen approach:
+- Add `scripts/macos/unblock_unsigned_app.sh` helper script to remove quarantine attribute.
+- Document direct one-liner and local script usage in README.
+
 ## 13. W7 Wizard Opening UX Stabilization (March 2026)
 Objective:
 - Remove first-impression friction where the Broker Provider dropdown appears non-functional while the wizard gate is active.

@@ -18,13 +18,26 @@ Modular desktop platform scaffold for NSE F&O signal/recommendation workflows.
 - use `Install Background Service` when prompted
 4. After wizard passes, workspace unlocks and service is managed without manual service-install commands.
 
+### macOS Unsigned Install (No Notarization)
+If macOS reports the app as damaged/blocked, run:
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/uditk2/stock-market-agentic-platform/master/scripts/macos/unblock_unsigned_app.sh)"
+```
+
+Or run locally from repo checkout:
+
+```bash
+scripts/macos/unblock_unsigned_app.sh "/Applications/SMAP Desktop.app"
+```
+
 ### Service
 ```bash
 cd apps/service
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .[dev]
-uvicorn smap_service.main:app --reload --port 8787
+uvicorn smap_service.main:app --reload --port 18787
 ```
 
 ### Desktop

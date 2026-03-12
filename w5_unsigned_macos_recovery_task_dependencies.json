@@ -1,0 +1,8 @@
+{
+  "tasks": [
+    {"id": "U1", "name": "Add unsigned mac unblock helper script", "depends_on": []},
+    {"id": "U2", "name": "Document mac unsigned install recovery in README", "depends_on": ["U1"]},
+    {"id": "U3", "name": "Update design/blueprint/tasks artifacts", "depends_on": ["U1", "U2"]},
+    {"id": "U4", "name": "Push and verify CI", "depends_on": ["U3"]}
+  ]
+}

@@ -146,6 +146,16 @@
 3. Keep Windows/Linux uploads limited to primary installer outputs.
 4. Validate workflow and run CI before handing new artifact link to user.
 
+## Iteration 24 (Unsigned macOS Recovery Draft)
+1. Capture unsigned-notarization policy decision.
+2. Add deterministic mac unblock helper script.
+3. Document exact first-run recovery command for users.
+
+## Iteration 25 (Unsigned macOS Recovery Refined)
+1. Keep DMG-only artifact distribution unchanged.
+2. Provide both local-script and curl one-liner recovery paths.
+3. Push and verify CI remains green after script/docs addition.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.

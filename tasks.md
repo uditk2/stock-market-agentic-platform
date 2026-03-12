@@ -244,3 +244,14 @@
 2. Keep provider-loading retry to avoid empty-provider race on broker stage.
 3. Preserve existing service controls and terminal for home stage only.
 4. Add targeted tests for installer execution helper and keep full desktop suite green.
+
+## Iteration 32 (Undefined Port Hotfix Draft)
+1. Reproduce provider URL parse failure from user report.
+2. Patch service launch metadata to always include valid port.
+3. Add renderer fallback guard against invalid launch base URL.
+4. Run desktop tests and publish patched installer.
+
+## Iteration 33 (Undefined Port Hotfix Refined)
+1. Keep fix minimal to avoid onboarding regression.
+2. Add/keep resolver tests asserting returned port.
+3. Ensure API base defaults to 18787 when launch data is malformed.

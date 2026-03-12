@@ -1,0 +1,7 @@
+{
+  "tasks": [
+    {"id": "W8P-1", "title": "Propagate service launch port in resolver", "depends_on": []},
+    {"id": "W8P-2", "title": "Renderer API_BASE guard and default fallback", "depends_on": ["W8P-1"]},
+    {"id": "W8P-3", "title": "Test and publish patched installer", "depends_on": ["W8P-2"]}
+  ]
+}

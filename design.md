@@ -385,3 +385,14 @@ Constraints:
 - Keep existing service/provider APIs unchanged.
 - Keep non-Electron preview fallback messaging.
 - Preserve secure command boundaries and existing CLI scope logic.
+
+## 17. W8 Provider URL Undefined Port Hotfix (March 2026)
+Objective:
+- Fix provider bootstrap failure when UI composes API base URL with an undefined service port.
+
+Root cause:
+- Renderer consumed service launch metadata and built `http://127.0.0.1:undefined` when launch port was missing.
+
+Fix strategy:
+- Ensure service launch resolver always emits a valid numeric port.
+- Add renderer-side defensive fallback to default local port (`18787`) when launch metadata is invalid.

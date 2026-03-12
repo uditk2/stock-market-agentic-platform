@@ -640,10 +640,13 @@
         const status = hasBridge
           ? await window.smapBridge.serviceStatus()
           : { running: await checkServiceReachable() };
-        if (status?.launch?.baseUrl) {
+        const launchPort = Number(status?.launch?.port);
+        if (status?.launch?.baseUrl && !String(status.launch.baseUrl).includes("undefined")) {
           API_BASE = status.launch.baseUrl;
-        } else if (status?.launch?.port) {
-          API_BASE = `http://127.0.0.1:${status.launch.port}`;
+        } else if (Number.isFinite(launchPort) && launchPort > 0) {
+          API_BASE = `http://127.0.0.1:${launchPort}`;
+        } else {
+          API_BASE = "http://127.0.0.1:18787";
         }
         const badge = document.getElementById("serviceBadge");
         badge.className = status.running ? "badge text-bg-success" : "badge text-bg-danger";

@@ -325,3 +325,24 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Validate desktop test suite and CI.
 - Risks/open questions:
   - Global npm installs may fail in user environments without proper permissions/PATH; wizard must show actionable failure text.
+
+### Current Slice: Provider URL Undefined Port Hotfix
+- Problem statement:
+  - Provider fetch fails with URL parse error due to `127.0.0.1:undefined` base URL.
+- Constraints:
+  - Preserve existing service start flow and onboarding UX.
+- Design alternatives considered:
+  1. Renderer-only fallback: partially mitigates but hides launch metadata bug.
+  2. Main-only port propagation: fixes source but lacks UI defense.
+  3. Apply both propagation + UI fallback: chosen.
+- Chosen architecture:
+  - `service_runtime` guarantees numeric port in all launch modes.
+  - Renderer validates launch metadata and falls back to `http://127.0.0.1:18787`.
+- Interfaces/modules:
+  - `apps/desktop/main/service_runtime.js`
+  - `apps/desktop/main/service_runtime.test.js`
+  - `apps/desktop/renderer/index.html`
+- Delivery plan:
+  - Patch, test, push, and publish new installer build link.
+- Risks/open questions:
+  - User environments with non-default custom ports still rely on valid launch metadata from main process.

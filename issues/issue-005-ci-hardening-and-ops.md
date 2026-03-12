@@ -26,3 +26,15 @@ Finalize build hardening, integration checks, and issue-tracking sync.
 - Additional hardening fix:
   - Added gitignore allowlist for `apps/service/smap_service.spec`.
   - Removed shell `source` dependency and switched to cross-platform venv python invocation.
+- Final packaging root cause and fix:
+  - Ubuntu desktop installer failed at `Build desktop installers` because Debian package metadata was incomplete.
+  - Updated `apps/desktop/package.json` with required metadata:
+    - top-level `homepage`
+    - author as object with `email`
+    - `build.linux.maintainer`
+- Verification:
+  - Local desktop packaging: `npm run dist` succeeded (AppImage + DEB).
+  - GitHub Actions `Build Installers` run `22987472765` is green across all matrix jobs:
+    - `windows-latest`
+    - `ubuntu-latest`
+    - `macos-latest`

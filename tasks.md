@@ -111,6 +111,18 @@
 3. Add deterministic fallback text for service-down and no-provider states.
 4. Re-run desktop + service tests before closeout.
 
+## Iteration 18 (Wizard Install Assistant Draft)
+1. Add wizard controls to capture subscription ownership and install target CLI.
+2. Add main-process install-plan module to validate choices and generate platform-aware commands.
+3. Expose install-plan flow through preload bridge and renderer action button.
+4. Run install command through embedded terminal advanced mode with explicit next-step guidance.
+
+## Iteration 19 (Wizard Install Assistant Refined)
+1. Keep subscription/CLI compatibility validation deterministic and user-visible.
+2. Keep install flow explicit (show selected target + command intent + auth follow-up reminder).
+3. Add unit tests for install-plan validation and command generation.
+4. Re-run desktop + service tests before CI push.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -127,7 +139,7 @@
 3. W3 Mandatory AI CLI Wizard Enforcement
 - Implement executable detection, version check, and auth/session checks for Codex/Claude CLIs.
 - Status: complete (CLI check engine, preload bridge, mandatory renderer wizard gate, tests).
-- Follow-up status: pending policy decision for auto-install UX (auto-install all missing CLIs vs per-tool install controls).
+- Follow-up status: in progress (wizard install assistant flow based on user-declared subscription + selected CLI).
 
 4. W4 Embedded Terminal Runtime
 - Add PTY-backed terminal panel with safe command profiles and advanced mode toggle.

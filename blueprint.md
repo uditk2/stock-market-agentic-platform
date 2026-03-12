@@ -119,6 +119,34 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks/open questions:
   - User still expects full auto-install flow for missing CLIs; policy decision remains pending separately.
 
+### Current Slice: Wizard CLI Install Assistant
+- Problem statement:
+  - Wizard currently reports missing CLIs but does not help the user install them.
+- Constraints:
+  - Must ask user subscription ownership and intended CLI target.
+  - Must preserve explicit user intent before execution.
+  - Must keep mandatory wizard pass gate unchanged.
+- Design alternatives considered:
+  1. Auto-install all missing CLIs immediately: rejected (too implicit, subscription mismatch risk).
+  2. Manual external docs only: rejected (still poor wizard UX).
+  3. Wizard-driven selection + validated install plan + terminal-assisted execution: chosen.
+- Chosen architecture:
+  - Main process module returns validated install plan per selected subscription + CLI + platform.
+  - Preload bridge exposes install-plan API to renderer.
+  - Renderer wizard adds subscription selector, install-target selector, and install action.
+- Interfaces/modules:
+  - `apps/desktop/main/wizard_cli_install.js`
+  - `apps/desktop/main/main.js` IPC handler
+  - `apps/desktop/preload/preload.js`
+  - `apps/desktop/renderer/index.html`
+- Delivery plan:
+  - Build install-plan module + tests.
+  - Wire IPC and renderer controls.
+  - Run desktop + service tests.
+  - Push and monitor installer CI matrix to green.
+- Risks/open questions:
+  - CLI package names/install channels can change upstream; commands should remain easy to update in one module.
+
 ## Risks and Open Questions
 ### Risks
 - External API limits and unstable schemas.

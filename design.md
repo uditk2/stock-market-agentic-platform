@@ -237,6 +237,23 @@ Chosen UX behavior:
   - "No providers available" when the provider list is empty.
   - "Provider list unavailable" when service/API fetch fails.
 - Keep contextual helper text clear that workspace remains locked until wizard checks pass.
+
+## 14. W3 Wizard Install Assistant (March 2026)
+Objective:
+- Upgrade wizard from passive CLI check-only UX to guided install UX that asks user subscription ownership and chosen CLI install target.
+
+Functional behavior:
+- Wizard asks:
+  - which subscription(s) user has
+  - which CLI user wants to install now
+- Wizard validates install target against declared subscription ownership.
+- Wizard generates OS-aware install plan and can run install command via embedded terminal in advanced mode.
+- Wizard keeps mandatory check gate intact; user still runs checks after install/auth.
+
+Constraints:
+- Avoid silent auto-installs without user intent.
+- Keep install flow transparent (show command + next steps).
+- Preserve compatibility with non-Electron preview mode by showing plan text even if terminal bridge is unavailable.
 - Resolution order:
   1. `SMAP_SERVICE_BIN` env override
   2. packaged resource path candidates under Electron `process.resourcesPath/service/`

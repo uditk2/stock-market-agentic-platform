@@ -109,6 +109,32 @@
                 Refresh Service Check
               </button>
             </div>
+            <div class="row g-2 mb-3">
+              <div class="col-md-4">
+                <label class="form-label small mb-1" for="wizardSubscriptionSelect">Subscription you have</label>
+                <select class="form-select form-select-sm" id="wizardSubscriptionSelect">
+                  <option value="none">None yet</option>
+                  <option value="codex">OpenAI / Codex</option>
+                  <option value="claude">Anthropic / Claude</option>
+                  <option value="both">Both subscriptions</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label small mb-1" for="wizardCliTargetSelect">CLI to install now</label>
+                <select class="form-select form-select-sm" id="wizardCliTargetSelect">
+                  <option value="codex">Codex CLI</option>
+                </select>
+              </div>
+              <div class="col-md-4 d-flex align-items-end">
+                <button class="btn btn-outline-dark btn-sm w-100" id="wizardInstallCliBtn">
+                  <i class="bi bi-download"></i>
+                  Install Selected CLI
+                </button>
+              </div>
+            </div>
+            <div id="wizardInstallHelp" class="small text-secondary mb-3">
+              Choose your subscription and target CLI, then run install from wizard.
+            </div>
             <button class="btn btn-warning" id="wizardRunBtn">
               <i class="bi bi-shield-check"></i>
               Run Mandatory Checks
@@ -280,6 +306,7 @@
       const API_BASE = "http://127.0.0.1:8787";
       const hasBridge = Boolean(window.smapBridge && window.smapBridge.serviceStatus);
       const hasWizardBridge = Boolean(window.smapBridge && window.smapBridge.cliChecks);
+      const hasWizardInstallBridge = Boolean(window.smapBridge && window.smapBridge.wizardCliInstallPlan);
       const hasBackgroundBridge = Boolean(window.smapBridge && window.smapBridge.backgroundServiceStatus);
       const hasTerminalBridge = Boolean(window.smapBridge && window.smapBridge.terminalStart);
       const toast = new bootstrap.Toast(document.getElementById("toast"), { delay: 2200 });
@@ -290,6 +317,9 @@
         "wizardRunBtn",
         "wizardInstallServiceBtn",
         "wizardRefreshServiceBtn",
+        "wizardSubscriptionSelect",
+        "wizardCliTargetSelect",
+        "wizardInstallCliBtn",
         "providerSelect",
         "loadProviderBtn",
       ]);
@@ -414,6 +444,87 @@
         }
         showToast("Background service installed. Re-running wizard checks...");
         await runWizardChecks();
+      }
+
+      function allowedCliTargetsForSubscription(subscription) {
+        if (subscription === "both") {
+          return ["codex", "claude"];
+        }
+        if (subscription === "codex") {
+          return ["codex"];
+        }
+        if (subscription === "claude") {
+          return ["claude"];
+        }
+        return [];
+      }
+
+      function refreshWizardCliTargets() {
+        const subscription = document.getElementById("wizardSubscriptionSelect").value;
+        const targets = allowedCliTargetsForSubscription(subscription);
+        const targetSelect = document.getElementById("wizardCliTargetSelect");
+        targetSelect.innerHTML = "";
+        if (!targets.length) {
+          const option = document.createElement("option");
+          option.value = "";
+          option.innerText = "Select subscription first";
+          targetSelect.appendChild(option);
+          targetSelect.value = "";
+          document.getElementById("wizardInstallHelp").innerText =
+            "No supported CLI install target for current subscription selection.";
+          return;
+        }
+        targets.forEach((target) => {
+          const option = document.createElement("option");
+          option.value = target;
+          option.innerText = target === "codex" ? "Codex CLI" : "Claude CLI";
+          targetSelect.appendChild(option);
+        });
+        targetSelect.value = targets[0];
+        document.getElementById("wizardInstallHelp").innerText =
+          "Install uses npm global package flow and then requires CLI auth login.";
+      }
+
+      async function runWizardCliInstall() {
+        if (!hasWizardInstallBridge) {
+          showToast("CLI install planning is available only inside Electron.");
+          return;
+        }
+        const subscription = document.getElementById("wizardSubscriptionSelect").value;
+        const cliId = document.getElementById("wizardCliTargetSelect").value;
+        if (!cliId) {
+          showToast("Select a supported CLI target first.");
+          return;
+        }
+        const plan = await window.smapBridge.wizardCliInstallPlan({ subscription, cliId });
+        if (!plan.ok) {
+          document.getElementById("wizardInstallHelp").innerText = plan.message || "Wizard install plan failed.";
+          showToast(plan.message || "Invalid wizard install selection.");
+          return;
+        }
+        document.getElementById("wizardInstallHelp").innerText =
+          `${plan.cli_label}: run '${plan.install_command}', then '${plan.auth_command}', then click Run Mandatory Checks.`;
+        if (!hasTerminalBridge) {
+          showToast(`Install command: ${plan.install_command}`);
+          return;
+        }
+        const start = await window.smapBridge.terminalStart({
+          profile: "ops_status",
+          advancedMode: true,
+          cols: 120,
+          rows: 32,
+        });
+        if (!start.ok) {
+          showToast("Unable to start terminal for install.");
+          return;
+        }
+        terminalStarted = true;
+        appendTerminalOutput(`\n[SMAP] wizard install target=${plan.cli_id}\n`);
+        appendTerminalOutput(`$ ${plan.prereq_check_command}\n`);
+        await window.smapBridge.terminalWrite({ command: plan.prereq_check_command });
+        appendTerminalOutput(`$ ${plan.install_command}\n`);
+        await window.smapBridge.terminalWrite({ command: plan.install_command });
+        showToast(`Install command sent. Next run '${plan.auth_command}', then run mandatory checks.`);
       }
 
       function showToast(text) {
@@ -710,6 +821,8 @@
       document.getElementById("wizardRunBtn").addEventListener("click", runWizardChecks);
       document.getElementById("wizardInstallServiceBtn").addEventListener("click", installBackgroundServiceFromWizard);
       document.getElementById("wizardRefreshServiceBtn").addEventListener("click", runWizardChecks);
+      document.getElementById("wizardSubscriptionSelect").addEventListener("change", refreshWizardCliTargets);
+      document.getElementById("wizardInstallCliBtn").addEventListener("click", runWizardCliInstall);
       if (hasTerminalBridge) {
         window.smapBridge.onTerminalOutput((chunk) => appendTerminalOutput(chunk));
         window.smapBridge.onTerminalExit(() => {
@@ -728,6 +841,15 @@
         if (!hasBackgroundBridge) {
           document.getElementById("wizardInstallServiceBtn").dataset.forceDisabled = "1";
           document.getElementById("wizardRefreshServiceBtn").dataset.forceDisabled = "1";
+        }
+        if (!hasWizardInstallBridge) {
+          document.getElementById("wizardInstallCliBtn").dataset.forceDisabled = "1";
+          document.getElementById("wizardSubscriptionSelect").dataset.forceDisabled = "1";
+          document.getElementById("wizardCliTargetSelect").dataset.forceDisabled = "1";
+          document.getElementById("wizardInstallHelp").innerText =
+            "CLI install helper is available only in Electron runtime.";
+        } else {
+          refreshWizardCliTargets();
         }
         if (!hasTerminalBridge) {
           document.getElementById("terminalStartBtn").dataset.forceDisabled = "1";

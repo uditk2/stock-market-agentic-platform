@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const pty = require('node-pty');
 const { PROFILES, isCommandAllowed } = require('./terminal_profiles');
 const { runMandatoryCliChecks } = require('./cli_checks');
+const { buildWizardCliInstallPlan } = require('./wizard_cli_install');
 const { resolveServiceLaunch } = require('./service_runtime');
 const { getBackgroundServiceStatus, installBackgroundService } = require('./background_service_manager');
 
@@ -126,6 +127,13 @@ ipcMain.handle('service-start', () => {
   return { ok: true };
 });
 ipcMain.handle('cli-checks', () => runMandatoryCliChecks());
+ipcMain.handle('wizard-cli-install-plan', (_, payload) =>
+  buildWizardCliInstallPlan({
+    platform: process.platform,
+    subscription: payload?.subscription,
+    cliId: payload?.cliId,
+  }),
+);
 ipcMain.handle('background-service-status', async () =>
   getBackgroundServiceStatus({
     platform: process.platform,

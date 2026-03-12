@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
-const { checkSingleCli, runMandatoryCliChecks } = require('./cli_checks');
+const { checkSingleCli, runMandatoryCliChecks, buildCommandEnv } = require('./cli_checks');
 
 function makeRunner(map) {
   return (binary, args) => {
@@ -99,4 +99,10 @@ test('runMandatoryCliChecks supports subscription scope', () => {
   assert.equal(result.ok, true);
   assert.equal(result.checks.length, 1);
   assert.equal(result.checks[0].id, 'codex');
+});
+
+test('buildCommandEnv augments PATH with common binary locations', () => {
+  const env = buildCommandEnv({ PATH: '/usr/bin:/bin' });
+  assert.match(env.PATH, /\/usr\/local\/bin/);
+  assert.match(env.PATH, /\/opt\/homebrew\/bin/);
 });

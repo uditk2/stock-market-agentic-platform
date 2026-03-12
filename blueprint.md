@@ -245,6 +245,31 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks/open questions:
   - Release tag is mutable by design; audit trail should rely on commit SHA and workflow run links.
 
+### Current Slice: Codex Detection + Provider Visibility Fix
+- Problem statement:
+  - Wizard reports Codex not installed on mac despite installation, and providers appear unavailable when service is installed but not running.
+- Constraints:
+  - Keep mandatory lock behavior.
+  - Preserve secure command execution boundaries.
+- Design alternatives considered:
+  1. Disable lock checks until service/provider config complete: rejected (weakens mandatory gating).
+  2. Add manual support text only: rejected (does not fix functional detection/startup path).
+  3. Improve PATH-aware CLI probes + allow start/refresh while locked + one-time service auto-start retry: chosen.
+- Chosen architecture:
+  - `cli_checks` now builds augmented command PATH for GUI-launched app environments.
+  - Renderer lock bypass allows `startServiceBtn` + `refreshServiceBtn`.
+  - Provider retry flow attempts service start once via bridge before final failure.
+- Interfaces/modules:
+  - `apps/desktop/main/cli_checks.js`
+  - `apps/desktop/main/cli_checks.test.js`
+  - `apps/desktop/renderer/index.html`
+- Delivery plan:
+  - Patch detection and lock/retry behavior.
+  - Run desktop tests.
+  - Push and verify Build Installers CI.
+- Risks/open questions:
+  - PATH fallback covers common install paths; edge-case custom install locations may still require manual PATH configuration.
+
 ## Risks and Open Questions
 ### Risks
 - External API limits and unstable schemas.

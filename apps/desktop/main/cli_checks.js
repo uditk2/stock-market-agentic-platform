@@ -1,4 +1,7 @@
 const { spawnSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const CLI_DEFINITIONS = [
   {
@@ -23,6 +26,7 @@ function runCommand(binary, args) {
     encoding: 'utf8',
     timeout: 5000,
     shell: false,
+    env: buildCommandEnv(),
   });
   const stdout = (result.stdout || '').trim();
   const stderr = (result.stderr || '').trim();
@@ -35,6 +39,61 @@ function runCommand(binary, args) {
     exitCode,
     error: result.error ? String(result.error.message || result.error) : null,
   };
+}
+
+function unique(values) {
+  const seen = new Set();
+  const output = [];
+  values.forEach((item) => {
+    if (!item || seen.has(item)) {
+      return;
+    }
+    seen.add(item);
+    output.push(item);
+  });
+  return output;
+}
+
+function collectNodeBinPaths(baseDir) {
+  const output = [];
+  try {
+    const entries = fs.readdirSync(baseDir, { withFileTypes: true });
+    entries.forEach((entry) => {
+      if (!entry.isDirectory()) {
+        return;
+      }
+      output.push(path.join(baseDir, entry.name, 'bin'));
+    });
+  } catch {
+    // Ignore missing/permission-denied folders.
+  }
+  return output;
+}
+
+function buildCommandEnv(baseEnv = process.env) {
+  const env = { ...baseEnv };
+  const delimiter = path.delimiter;
+  const homeDir = os.homedir();
+  const existingPath = String(baseEnv.PATH || '');
+  const extras = [
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+    path.join(homeDir, '.local', 'bin'),
+    path.join(homeDir, '.npm-global', 'bin'),
+    path.join(homeDir, '.volta', 'bin'),
+  ];
+  extras.push(...collectNodeBinPaths(path.join(homeDir, '.nvm', 'versions', 'node')));
+  extras.push(...collectNodeBinPaths(path.join(homeDir, '.fnm')));
+  const merged = unique([
+    ...existingPath.split(delimiter).filter(Boolean),
+    ...extras,
+  ]);
+  env.PATH = merged.join(delimiter);
+  return env;
 }
 
 function parseVersion(raw) {
@@ -134,6 +193,7 @@ function runMandatoryCliChecks(optionsOrRunner = {}, maybeRunner = runCommand) {
 
 module.exports = {
   CLI_DEFINITIONS,
+  buildCommandEnv,
   runCommand,
   checkSingleCli,
   runMandatoryCliChecks,

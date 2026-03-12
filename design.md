@@ -259,6 +259,19 @@ Chosen approach:
 - Add a macOS-only post-build step that publishes DMG to release tag `smap-mac-latest`.
 - Use `gh release upload --clobber` to keep asset updated each push.
 
+## 16. Wizard Detection + Provider Recovery Hardening (March 2026)
+Objective:
+- Resolve false-negative Codex CLI detection and missing provider list during blocked wizard state.
+
+Design constraints:
+- Keep mandatory wizard lock semantics.
+- Keep provider configuration discoverable before full unlock.
+
+Chosen approach:
+- Extend CLI check command environment PATH with common GUI-missing binary locations.
+- Keep service start/refresh controls usable while workspace is locked.
+- Add provider-load retry bootstrap to attempt service start once before failing provider fetch.
+
 ## 13. W7 Wizard Opening UX Stabilization (March 2026)
 Objective:
 - Remove first-impression friction where the Broker Provider dropdown appears non-functional while the wizard gate is active.

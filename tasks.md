@@ -166,6 +166,16 @@
 2. Use deterministic asset naming and `--clobber` behavior.
 3. Validate workflow and share direct release link after successful run.
 
+## Iteration 28 (Wizard Detection/Provider Draft)
+1. Reproduce Codex false-negative detection from mac wizard report.
+2. Patch CLI check environment PATH handling for GUI-launched runtime.
+3. Ensure provider controls needed for recovery remain usable when locked.
+
+## Iteration 29 (Wizard Detection/Provider Refined)
+1. Add one-time service auto-start attempt during provider retry path.
+2. Keep mandatory lock for mutating controls while allowing startup/reload actions.
+3. Add/adjust tests and verify desktop suite passes before CI push.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.

@@ -311,7 +311,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-      const API_BASE = "http://127.0.0.1:8787";
+      let API_BASE = "http://127.0.0.1:18787";
       const hasBridge = Boolean(window.smapBridge && window.smapBridge.serviceStatus);
       const hasWizardBridge = Boolean(window.smapBridge && window.smapBridge.cliChecks);
       const hasWizardInstallBridge = Boolean(window.smapBridge && window.smapBridge.wizardCliInstallPlan);
@@ -334,6 +334,8 @@
         "wizardInstallCliBtn",
         "providerSelect",
         "loadProviderBtn",
+        "refreshServiceBtn",
+        "startServiceBtn",
       ]);
 
       function renderProviderFallback(message, helpText = "") {
@@ -669,6 +671,11 @@
         const status = hasBridge
           ? await window.smapBridge.serviceStatus()
           : { running: await checkServiceReachable() };
+        if (status?.launch?.baseUrl) {
+          API_BASE = status.launch.baseUrl;
+        } else if (status?.launch?.port) {
+          API_BASE = `http://127.0.0.1:${status.launch.port}`;
+        }
         const badge = document.getElementById("serviceBadge");
         badge.className = status.running ? "badge text-bg-success" : "badge text-bg-danger";
         badge.innerText = `Service: ${status.running ? "running" : "stopped"}`;
@@ -729,6 +736,18 @@
             return true;
           } catch (error) {
             lastError = error;
+            if (attempt === 1 && hasBridge && window.smapBridge.serviceStatus && window.smapBridge.serviceStart) {
+              try {
+                const status = await window.smapBridge.serviceStatus();
+                if (!status.running) {
+                  await window.smapBridge.serviceStart();
+                  await sleep(1200);
+                  await refreshServiceStatus();
+                }
+              } catch {
+                // Ignore start attempt errors; retry loop will continue.
+              }
+            }
             await sleep(waitMs);
           }
         }

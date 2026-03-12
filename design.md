@@ -218,6 +218,25 @@ Design constraints:
 
 Chosen approach:
 - Add dedicated service binary resolver in desktop main process.
+
+## 13. W7 Wizard Opening UX Stabilization (March 2026)
+Objective:
+- Remove first-impression friction where the Broker Provider dropdown appears non-functional while the wizard gate is active.
+
+Problem details:
+- Current mandatory lock disables almost all controls before checks pass.
+- This includes Broker Provider selection on the opening screen, which users interpret as a broken dropdown.
+- If provider loading fails or returns no items, the select appears blank without actionable context.
+
+Chosen UX behavior:
+- Keep mandatory wizard gate intact for mutating actions (saving credentials, running workspace actions).
+- Allow non-mutating provider discovery controls while locked:
+  - Broker Provider dropdown
+  - Reload button
+- Add explicit fallback states:
+  - "No providers available" when the provider list is empty.
+  - "Provider list unavailable" when service/API fetch fails.
+- Keep contextual helper text clear that workspace remains locked until wizard checks pass.
 - Resolution order:
   1. `SMAP_SERVICE_BIN` env override
   2. packaged resource path candidates under Electron `process.resourcesPath/service/`

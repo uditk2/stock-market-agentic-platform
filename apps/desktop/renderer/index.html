@@ -286,15 +286,34 @@
       let currentDetail = null;
       let terminalStarted = false;
       let workspaceLocked = true;
+      const lockBypassControlIds = new Set([
+        "wizardRunBtn",
+        "wizardInstallServiceBtn",
+        "wizardRefreshServiceBtn",
+        "providerSelect",
+        "loadProviderBtn",
+      ]);
+
+      function renderProviderFallback(message, helpText = "") {
+        const select = document.getElementById("providerSelect");
+        select.innerHTML = "";
+        const option = document.createElement("option");
+        option.value = "";
+        option.innerText = message;
+        select.appendChild(option);
+        select.value = "";
+        document.getElementById("requiredFields").innerText = "";
+        document.getElementById("providerStatus").innerText = message;
+        if (helpText) {
+          document.getElementById("providerHelp").innerText = helpText;
+        }
+      }
 
       function setWorkspaceLocked(locked) {
         workspaceLocked = locked;
         const controls = document.querySelectorAll("button, input, select, textarea");
         controls.forEach((el) => {
-          if (el.id === "wizardRunBtn") {
-            return;
-          }
-          if (el.id === "wizardInstallServiceBtn" || el.id === "wizardRefreshServiceBtn") {
+          if (lockBypassControlIds.has(el.id)) {
             return;
           }
           if (locked) {
@@ -308,6 +327,10 @@
           }
           el.disabled = el.dataset.previousDisabled === "1";
         });
+        const providerHelp = document.getElementById("providerHelp");
+        providerHelp.innerText = locked
+          ? "Workspace is locked until wizard checks pass. You can still select/reload broker provider."
+          : "Credentials are encrypted at rest in local SQLite.";
       }
 
       function renderBackgroundStatus(status) {
@@ -429,6 +452,10 @@
       }
 
       async function getRequiredSchema(provider) {
+        if (!provider) {
+          document.getElementById("requiredFields").innerText = "Provider metadata unavailable.";
+          return [];
+        }
         const payload = await api(`/providers/brokers/schema/${provider}`);
         const required = payload.required_fields || [];
         document.getElementById("requiredFields").innerText =
@@ -440,6 +467,13 @@
         const payload = await api("/providers/brokers");
         const select = document.getElementById("providerSelect");
         select.innerHTML = "";
+        if (!payload.items || !payload.items.length) {
+          renderProviderFallback(
+            "No providers available",
+            "No broker providers were returned by service. Click Reload after service is ready.",
+          );
+          return;
+        }
         payload.items.forEach((provider) => {
           const option = document.createElement("option");
           option.value = provider;
@@ -456,6 +490,10 @@
 
       async function saveProvider() {
         const provider = document.getElementById("providerSelect").value;
+        if (!provider) {
+          showToast("Select a broker provider first.");
+          return;
+        }
         const raw = document.getElementById("providerCreds").value.trim();
         let credentials = {};
         if (raw) {
@@ -709,6 +747,10 @@
         try {
           await loadProviders();
         } catch (error) {
+          renderProviderFallback(
+            "Provider list unavailable",
+            "Unable to fetch provider list from service. Keep wizard running, then click Reload.",
+          );
           showToast(`Provider warning: ${error.message}`);
         }
         try {

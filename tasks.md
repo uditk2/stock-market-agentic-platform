@@ -99,6 +99,18 @@
 2. Keep only final installer/update metadata files in `apps/desktop/release`.
 3. Verify post-change artifact size reduction after green CI run.
 
+## Iteration 16 (Wizard Opening UX Draft)
+1. Diagnose why Broker Provider dropdown appears broken on first wizard screen.
+2. Keep mandatory wizard gate but unblock non-mutating provider discovery controls.
+3. Add empty/error fallback option states for provider loading.
+4. Preserve clear user messaging for lock state and next steps.
+
+## Iteration 17 (Wizard Opening UX Refined)
+1. Keep `providerSelect` + `loadProviderBtn` active while locked; keep save/edit controls locked.
+2. Ensure provider schema/status rendering handles empty options safely (no invalid schema request).
+3. Add deterministic fallback text for service-down and no-provider states.
+4. Re-run desktop + service tests before closeout.
+
 ## Final Task List
 1. W1 Persistent Runtime State
 - Replace in-memory scheduler/job history with SQLite-backed persistence and recovery metadata.
@@ -115,6 +127,7 @@
 3. W3 Mandatory AI CLI Wizard Enforcement
 - Implement executable detection, version check, and auth/session checks for Codex/Claude CLIs.
 - Status: complete (CLI check engine, preload bridge, mandatory renderer wizard gate, tests).
+- Follow-up status: pending policy decision for auto-install UX (auto-install all missing CLIs vs per-tool install controls).
 
 4. W4 Embedded Terminal Runtime
 - Add PTY-backed terminal panel with safe command profiles and advanced mode toggle.

@@ -25,6 +25,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - W5 templates accept configurable service command/arguments to support packaged and source runtime variants.
 - Wizard flow now owns operator-facing background-service installation (no manual script usage required for baseline UX).
 - Packaged desktop runtime should self-resolve bundled service binary path without manual `SMAP_SERVICE_BIN` setup.
+- Mandatory wizard lock must remain enforceable while still providing understandable, non-broken opening-screen controls.
 
 ## Design Alternatives Considered
 1. Monolith (UI + data + scheduling in one process): rejected due to low modularity and restart fragility.
@@ -91,6 +92,32 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
     - test coverage for renderer correctness
   - Status: complete.
 - Phase 3: recommendation lifecycle, monitoring, backtest, supervised learning.
+
+### Current Slice: Wizard Opening UX Stabilization
+- Problem statement:
+  - Opening-screen Broker Provider dropdown appears broken due to lock-state disabling and missing fallback UI states.
+- Constraints:
+  - Do not remove mandatory wizard gate.
+  - Keep behavior deterministic in Electron and preview/browser mode.
+- Design alternatives considered:
+  1. Fully unlock the workspace before wizard completion: rejected (breaks mandatory enforcement).
+  2. Keep full lock and only add text hints: rejected (control still feels broken).
+  3. Keep lock but allow safe discovery controls + explicit fallback states: chosen.
+- Chosen architecture:
+  - Renderer lock manager keeps mutating controls disabled.
+  - Provider dropdown/reload remain usable even when lock is active.
+  - Provider loading path injects explicit empty/error option states.
+- Interfaces/modules:
+  - `apps/desktop/renderer/index.html`:
+    - `setWorkspaceLocked`
+    - `loadProviders`
+    - `boot` provider error handling
+- Delivery plan:
+  - Implement lock allowlist + fallback options.
+  - Run desktop and service test suites.
+  - Push and watch CI to green.
+- Risks/open questions:
+  - User still expects full auto-install flow for missing CLIs; policy decision remains pending separately.
 
 ## Risks and Open Questions
 ### Risks

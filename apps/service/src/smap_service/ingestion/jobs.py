@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
+from smap_service.core.interfaces import MarketFeedClient
 from smap_service.core.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
@@ -16,10 +17,19 @@ class JobResult:
     error: str | None = None
 
 
-def ingest_market_bars() -> JobResult:
-    # Phase 1 scaffold; real Kotak integration in next sprint.
-    logger.info("market bars ingestion tick")
-    return JobResult(job_name="ingest_market_bars", status="success", records_processed=0)
+def ingest_market_bars(market_client: MarketFeedClient) -> JobResult:
+    symbols = ["NIFTY-FUT", "BANKNIFTY-FUT", "RELIANCE-FUT", "TCS-FUT"]
+    bars = market_client.fetch_latest_bars(symbols=symbols)
+    logger.info(
+        "market bars ingestion tick connector=%s records=%s",
+        market_client.name,
+        len(bars),
+    )
+    return JobResult(
+        job_name="ingest_market_bars",
+        status="success",
+        records_processed=len(bars),
+    )
 
 
 def ingest_news(registry: PluginRegistry, enabled: list[str]) -> JobResult:

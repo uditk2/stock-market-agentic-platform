@@ -5,21 +5,42 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SMAP Desktop</title>
     <style>
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 20px; }
-      .row { margin: 10px 0; }
-      .panel { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-top: 16px; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 20px; color: #1c2630; }
+      .row { margin: 10px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .panel { border: 1px solid #d5dde5; border-radius: 8px; padding: 12px; margin-top: 16px; background: #f8fbfd; }
       button { margin-right: 8px; }
       code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
+      .layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+      .list { max-height: 300px; overflow: auto; border: 1px solid #d5dde5; border-radius: 6px; background: #fff; }
+      .list-item { padding: 10px; border-bottom: 1px solid #eef2f7; cursor: pointer; }
+      .list-item:hover { background: #f4f8ff; }
+      .list-item:last-child { border-bottom: none; }
+      .muted { color: #5f7080; }
+      input, select, textarea { padding: 8px; border: 1px solid #c8d3df; border-radius: 6px; min-width: 240px; }
+      textarea { width: 100%; min-height: 80px; font-family: monospace; }
+      .tab-bar { display: flex; gap: 8px; margin-bottom: 8px; }
+      .tab-bar button { margin-right: 0; }
+      .active { background: #1f6feb; color: #fff; border-color: #1f6feb; }
+      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #e9f1ff; color: #1f6feb; font-size: 12px; }
     </style>
   </head>
   <body>
-    <h1>SMAP Desktop - Sprint 1 Scaffold</h1>
+    <h1>SMAP Desktop - W2 Workspace</h1>
     <div class="panel">
-      <h3>Setup Wizard (Mandatory)</h3>
-      <p>Step 1: Validate AI CLI installations (<code>codex</code> and/or <code>claude</code>)</p>
-      <p>Step 2: Validate auth/session</p>
-      <p>Step 3: Configure scheduler + providers</p>
-      <p><em>Implementation detail screens will be expanded in Sprint 2.</em></p>
+      <h3>Provider Setup</h3>
+      <div class="row">
+        <label for="providerSelect">Broker</label>
+        <select id="providerSelect"></select>
+        <button id="loadProvider">Load Status</button>
+      </div>
+      <div class="row">
+        <label for="providerCreds">Credentials JSON</label>
+      </div>
+      <textarea id="providerCreds" placeholder='{"api_key":"...","api_secret":"..."}'></textarea>
+      <div class="row">
+        <button id="saveProvider">Save Provider Credentials</button>
+        <span id="providerStatus" class="muted">Not saved</span>
+      </div>
     </div>
 
     <div class="panel">
@@ -33,19 +54,137 @@
     </div>
 
     <div class="panel">
-      <h3>Embedded Terminal (Planned)</h3>
-      <p>Terminal view scaffolding is reserved here for command profiles and advanced mode.</p>
+      <h3>Recommendations</h3>
+      <div class="row">
+        <input id="searchInput" placeholder="Search F&O symbol (e.g. RELIANCE)" />
+        <button id="searchBtn">Search</button>
+        <span class="pill">Default sort: confidence</span>
+      </div>
+      <div class="layout">
+        <div>
+          <div id="recommendationsList" class="list"></div>
+        </div>
+        <div>
+          <h4 id="detailTitle">Select a recommendation</h4>
+          <div class="tab-bar">
+            <button data-tab="news" class="tab-btn active">News</button>
+            <button data-tab="technicals" class="tab-btn">Technicals</button>
+            <button data-tab="strategy" class="tab-btn">Strategy</button>
+          </div>
+          <div id="detailBody" class="muted">Details will appear here.</div>
+        </div>
+      </div>
     </div>
 
     <script>
+      const API_BASE = 'http://127.0.0.1:8787';
+      let currentDetail = null;
+      let activeTab = 'news';
+
+      async function api(path, options = {}) {
+        const response = await fetch(`${API_BASE}${path}`, {
+          headers: { 'Content-Type': 'application/json' },
+          ...options
+        });
+        return response.json();
+      }
+
       async function refresh() {
         const status = await window.smapBridge.serviceStatus();
         document.getElementById('status').innerText = `Service status: ${status.running ? 'running' : 'stopped'}`;
       }
+
+      async function loadProviders() {
+        const payload = await api('/providers/brokers');
+        const select = document.getElementById('providerSelect');
+        select.innerHTML = '';
+        payload.items.forEach((provider) => {
+          const option = document.createElement('option');
+          option.value = provider;
+          option.innerText = provider;
+          select.appendChild(option);
+        });
+        if (payload.selected_provider) {
+          select.value = payload.selected_provider;
+        }
+        document.getElementById('providerStatus').innerText =
+          payload.has_credentials ? `Saved (${payload.selected_provider})` : 'No credentials saved';
+      }
+
+      async function saveProvider() {
+        const provider = document.getElementById('providerSelect').value;
+        const raw = document.getElementById('providerCreds').value.trim();
+        let credentials = {};
+        if (raw) {
+          try {
+            credentials = JSON.parse(raw);
+          } catch (err) {
+            document.getElementById('providerStatus').innerText = 'Invalid JSON';
+            return;
+          }
+        }
+        const payload = await api('/providers/brokers/selection', {
+          method: 'PUT',
+          body: JSON.stringify({ provider, credentials })
+        });
+        document.getElementById('providerStatus').innerText =
+          payload.ok ? `Saved (${payload.selected_provider})` : 'Save failed';
+      }
+
+      async function loadRecommendations() {
+        const query = document.getElementById('searchInput').value.trim();
+        const payload = await api(`/recommendations${query ? `?query=${encodeURIComponent(query)}` : ''}`);
+        const container = document.getElementById('recommendationsList');
+        container.innerHTML = '';
+        payload.items.forEach((item) => {
+          const div = document.createElement('div');
+          div.className = 'list-item';
+          div.innerHTML = `<strong>${item.symbol}</strong> (${item.direction})<br/><span class="muted">${item.summary}</span><br/><span class="muted">confidence: ${item.confidence}</span>`;
+          div.addEventListener('click', () => loadRecommendationDetail(item.recommendation_id));
+          container.appendChild(div);
+        });
+      }
+
+      async function loadRecommendationDetail(id) {
+        currentDetail = await api(`/recommendations/${id}`);
+        if (!currentDetail.ok) {
+          document.getElementById('detailTitle').innerText = 'Recommendation not found';
+          document.getElementById('detailBody').innerText = '';
+          return;
+        }
+        document.getElementById('detailTitle').innerText =
+          `${currentDetail.symbol} (${currentDetail.direction}) - confidence ${currentDetail.confidence}`;
+        renderTabs();
+      }
+
+      function renderTabs() {
+        const detailBody = document.getElementById('detailBody');
+        if (!currentDetail) {
+          detailBody.innerText = 'Details will appear here.';
+          return;
+        }
+        const rows = currentDetail.tabs[activeTab] || [];
+        detailBody.innerHTML = rows.map((row) => `<div>- ${row}</div>`).join('');
+      }
+
       document.getElementById('refresh').addEventListener('click', refresh);
       document.getElementById('start').addEventListener('click', async () => { await window.smapBridge.serviceStart(); refresh(); });
       document.getElementById('stop').addEventListener('click', async () => { await window.smapBridge.serviceStop(); refresh(); });
+      document.getElementById('loadProvider').addEventListener('click', loadProviders);
+      document.getElementById('saveProvider').addEventListener('click', saveProvider);
+      document.getElementById('searchBtn').addEventListener('click', loadRecommendations);
+      document.querySelectorAll('.tab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          activeTab = btn.dataset.tab;
+          renderTabs();
+        });
+      });
+
       refresh();
+      loadProviders();
+      loadRecommendations();
     </script>
   </body>
 </html>

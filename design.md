@@ -1,6 +1,6 @@
 # Stock Market Agentic Platform
 ## Design Document
-Version 1.2 | March 2026
+Version 1.3 | March 2026
 
 ## 1. Problem Statement
 Indian retail traders in NSE F&O need a modular recommendation platform with continuous background ingestion, transparent signal lineage, and extensible AI/strategy/news components.
@@ -54,3 +54,38 @@ Out of scope:
 - The S1-S8 scaffold phase is complete.
 - Next execution order is W1->W2->W3->W6->W4->W5->W8->W7->W9.
 - Priority remains modular extension points and background-runtime reliability.
+- W1 decisions locked:
+  - SQLite DB location: per-user app data directory (Option A)
+  - Job history retention: unlimited (no timeline cap for now)
+
+## 7. W2 UX and Provider Decisions (User-Driven, March 2026)
+Locked decisions:
+- Onboarding flow uses choice `1C` (user-confirmed).
+- Feed management must ask user to choose broker provider from:
+  - Kotak Neo
+  - Upstox
+  - Kite
+- UI must collect provider-specific credentials and store them in SQLite.
+- News input configuration is not exposed to user in W2 (system-managed defaults only).
+- Main daily page is recommendations-first.
+- Recommendation detail must open on click with tabbed rationale:
+  - Influential news
+  - Technical indicators
+  - Strategy explanation
+- Main daily page must include search for specific NSE F&O instruments.
+
+Final W2 locks:
+- Credential storage in SQLite: `B` encrypted-at-rest.
+- Daily page scope: `2A` recommendations + search only in W2.
+- Recommendation ordering default: `3A` confidence score (descending).
+
+## 8. W6 Connector Baseline (Slice 1, March 2026)
+Implemented baseline connector layer with retry/backoff and normalized output contracts:
+- Kotak market feed client (credential-aware, graceful fallback when missing token)
+- NewsAPI adapter (API-key driven fetch + normalization)
+- RSS poller/parser (feed list + retry + XML normalization)
+- NSE announcements adapter (JSON endpoint adapter + normalization)
+
+Scheduler wiring updates:
+- Market ingestion now uses connector client output instead of pure scaffold ticks.
+- Health metadata now includes active market connector identifier.

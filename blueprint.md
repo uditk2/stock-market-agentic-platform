@@ -1,4 +1,4 @@
-# Blueprint - Stock Market Agentic Platform (Canonical v1.2)
+# Blueprint - Stock Market Agentic Platform (Canonical v1.3)
 
 ## Problem Statement
 Build an auditable, modular NSE F&O futures recommendation desktop platform that keeps ingesting data in the background, supports interchangeable LLM agents, pluggable news feeds, and strategy module evolution without rewriting the core system.
@@ -11,6 +11,15 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Desktop-first runtime: core services must continue when UI is closed.
 - Mandatory first-run wizard includes AI CLI setup validation.
 - Release mode A (personal/internal unsigned-first) is locked for v1.
+- W1 runtime state persistence uses SQLite in per-user app data path.
+- W1 retention policy is unlimited until a later explicit cap decision.
+- W2 onboarding choice `1C` is accepted.
+- W2 broker feed choice must support Kotak Neo, Upstox, and Kite.
+- W2 keeps news source input hidden from end users (defaults only).
+- Daily operating UX is recommendations-first with searchable F&O symbols.
+- W2 credential storage is encrypted-at-rest in local SQLite.
+- W2 home scope is recommendations + search only (watchlist deferred).
+- W2 default recommendation order is confidence descending.
 
 ## Design Alternatives Considered
 1. Monolith (UI + data + scheduling in one process): rejected due to low modularity and restart fragility.
@@ -29,6 +38,10 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - PyInstaller for service binaries.
   - electron-builder for desktop installers.
   - GitHub Actions matrix to build macOS/Windows/Linux artifacts.
+- W2 UX Composition:
+  - Setup: broker choice selector + credential capture form (provider-specific fields).
+  - Daily home: recommendations list + instrument search bar.
+  - Recommendation drill-down: tabbed details for news impact, technicals, and strategy rationale.
 
 ## Interfaces / Modules
 ### Service modules
@@ -41,15 +54,21 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - `scheduler/*`
 - `ingestion/*`
 - `api/*`
+- `db/provider_credentials` (encrypted credential storage + provider selection)
+- `core/recommendations` (recommendation list/detail payload composition)
+- `core/retry` (shared retry/backoff wrapper for connector calls)
+- `plugins/market/*` (market connector adapters)
 
 ### Desktop modules
 - `main/*` (window lifecycle, service process manager, IPC)
 - `preload/*` (safe IPC bridge)
-- `renderer/*` (wizard, terminal view, scheduler view)
+- `renderer/*` (wizard, terminal view, scheduler view, recommendation workspace)
 
 ## Delivery Plan
 - Phase 1 (this run): foundation code scaffolding + modular plugin contracts + background scheduler service + desktop shell + CI packaging workflow.
-- Phase 2: real data source integrations and signal engines.
+- Phase 2: W2 UX/provider management implementation, then real data source integrations and signal engines.
+  - Slice 2A complete: W2 provider UX + credential persistence + recommendation workspace.
+  - Slice 2B in progress: W6 connector baseline (Kotak/NewsAPI/RSS/NSE adapters).
 - Phase 3: recommendation lifecycle, monitoring, backtest, supervised learning.
 
 ## Risks and Open Questions
@@ -60,8 +79,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 
 ### Open Questions (queued for next user window)
 - OQ1: Preferred GitHub repo visibility/name if creating a new remote is required.
-- OQ2: Initial default RSS feed list to ship in v1.
-- OQ3: Minimum supported OS versions per platform.
+- OQ2: Minimum supported OS versions per platform.
 
 ## Sprint 1 Acceptance Targets
 - Monorepo scaffold with clear module boundaries.
@@ -72,7 +90,7 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 
 ## Wave 2 Focus (Reassessed)
 - W1: move runtime state to SQLite persistence
-- W2: source/feed configuration management
+- W2: broker/feed UX + credential capture + recommendations-first workspace
 - W3-W4: mandatory CLI wizard + embedded terminal
 - W5: OS background service install templates
 - W6: real connector baseline

@@ -5,9 +5,10 @@ from dataclasses import dataclass
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from smap_service.core.config import RuntimeConfig
+from smap_service.core.config import RuntimeConfig, resolve_db_path
+from smap_service.core.interfaces import MarketFeedClient
 from smap_service.core.registry import PluginRegistry
-from smap_service.db.job_history import InMemoryJobHistoryStore, JobRun, now_utc
+from smap_service.db.job_history import JobRun, SQLiteJobHistoryStore, now_utc
 from smap_service.ingestion.jobs import ingest_announcements, ingest_market_bars, ingest_news
 
 logger = logging.getLogger(__name__)
@@ -16,17 +17,27 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SchedulerRuntime:
     scheduler: BackgroundScheduler
-    history: InMemoryJobHistoryStore
+    history: SQLiteJobHistoryStore
 
 
 class SchedulerManager:
-    def __init__(self, config: RuntimeConfig, registry: PluginRegistry):
+    def __init__(
+        self,
+        config: RuntimeConfig,
+        registry: PluginRegistry,
+        market_client: MarketFeedClient,
+    ):
         self._config = config
         self._registry = registry
-        self._history = InMemoryJobHistoryStore()
+        self._market_client = market_client
+        self._history = SQLiteJobHistoryStore(
+            db_path=resolve_db_path(config),
+            history_retention_days=config.history_retention_days,
+        )
         self._scheduler = BackgroundScheduler()
 
     def start(self) -> None:
+        self._history.set_runtime_state("last_scheduler_start_utc", now_utc().isoformat())
         self._scheduler.add_job(
             self._run_market_job,
             "interval",
@@ -55,6 +66,7 @@ class SchedulerManager:
         logger.info("scheduler started")
 
     def stop(self) -> None:
+        self._history.set_runtime_state("last_scheduler_stop_utc", now_utc().isoformat())
         self._scheduler.shutdown(wait=False)
         logger.info("scheduler stopped")
 
@@ -86,7 +98,10 @@ class SchedulerManager:
         )
 
     def _run_market_job(self) -> None:
-        self._record("ingest_market_bars", ingest_market_bars)
+        self._record(
+            "ingest_market_bars",
+            lambda: ingest_market_bars(self._market_client),
+        )
 
     def _run_news_job(self) -> None:
         self._record(

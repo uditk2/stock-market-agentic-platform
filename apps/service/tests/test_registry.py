@@ -8,3 +8,4 @@ def test_runtime_registers_plugins() -> None:
     assert "newsapi" in runtime.registry.news_providers
     assert "rss" in runtime.registry.news_providers
     assert "default_momentum" in runtime.registry.strategy_modules
+    assert runtime.market_client_name == "kotak_neo"

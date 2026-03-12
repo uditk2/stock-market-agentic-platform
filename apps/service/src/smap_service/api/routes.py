@@ -1,8 +1,21 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+import os
+from typing import Any
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from smap_service.app_runtime import AppRuntime
+from smap_service.db.provider_credentials import (
+    REQUIRED_CREDENTIAL_FIELDS,
+    SUPPORTED_BROKER_PROVIDERS,
+)
+
+
+class BrokerSelectionRequest(BaseModel):
+    provider: str = Field(min_length=1)
+    credentials: dict[str, str]
 
 
 def build_router(runtime: AppRuntime) -> APIRouter:
@@ -15,6 +28,10 @@ def build_router(runtime: AppRuntime) -> APIRouter:
             "status": "ok",
             "scheduler_running": scheduler_runtime.scheduler.running,
             "active_jobs": len(scheduler_runtime.scheduler.get_jobs()),
+            "runtime_db_path": str(scheduler_runtime.history.db_path()),
+            "last_scheduler_start_utc": scheduler_runtime.history.get_runtime_state("last_scheduler_start_utc"),
+            "last_scheduler_stop_utc": scheduler_runtime.history.get_runtime_state("last_scheduler_stop_utc"),
+            "market_connector": runtime.market_client_name,
             "llm_adapters": sorted(runtime.registry.llm_adapters.keys()),
             "news_providers": sorted(runtime.registry.news_providers.keys()),
             "strategy_modules": sorted(runtime.registry.strategy_modules.keys()),
@@ -36,5 +53,103 @@ def build_router(runtime: AppRuntime) -> APIRouter:
                 for row in rows
             ]
         }
+
+    @router.get("/providers/brokers")
+    def providers_brokers() -> dict[str, Any]:
+        selection = runtime.credentials.get_selection()
+        return {
+            "items": list(SUPPORTED_BROKER_PROVIDERS),
+            "selected_provider": selection.provider,
+            "has_credentials": selection.has_credentials,
+            "updated_at": selection.updated_at,
+        }
+
+    @router.put("/providers/brokers/selection")
+    def providers_selection(request: BrokerSelectionRequest) -> dict[str, Any]:
+        missing = runtime.credentials.missing_required_fields(
+            provider=request.provider,
+            credentials=request.credentials,
+        )
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "missing_required_fields",
+                    "provider": request.provider,
+                    "missing_fields": missing,
+                },
+            )
+        runtime.credentials.save_selection(
+            provider=request.provider,
+            credentials=request.credentials,
+        )
+        selection = runtime.credentials.get_selection()
+        return {
+            "ok": True,
+            "selected_provider": selection.provider,
+            "has_credentials": selection.has_credentials,
+            "updated_at": selection.updated_at,
+        }
+
+    @router.get("/providers/brokers/schema/{provider}")
+    def providers_schema(provider: str) -> dict[str, Any]:
+        if provider not in SUPPORTED_BROKER_PROVIDERS:
+            raise HTTPException(status_code=404, detail="unknown_provider")
+        return {
+            "provider": provider,
+            "required_fields": list(REQUIRED_CREDENTIAL_FIELDS.get(provider, ())),
+        }
+
+    @router.get("/connectors/diagnostics")
+    def connectors_diagnostics() -> dict[str, Any]:
+        selection = runtime.credentials.get_selection()
+        selected = selection.provider
+        selected_credentials = runtime.credentials.get_credentials(selected) if selected else {}
+        missing = (
+            runtime.credentials.missing_required_fields(selected, selected_credentials or {})
+            if selected
+            else []
+        )
+        rss_provider = runtime.registry.news_providers.get("rss")
+        rss_feed_count = len(getattr(rss_provider, "_feeds", [])) if rss_provider else 0
+        return {
+            "market": {
+                "active_connector": runtime.market_client_name,
+                "selected_provider": selected,
+                "has_credentials": selection.has_credentials,
+                "missing_required_fields": missing,
+            },
+            "news": {
+                "newsapi_key_configured": bool(os.getenv("SMAP_NEWSAPI_KEY")),
+                "rss_feed_count": rss_feed_count,
+                "announcements_adapter_enabled": "nse_announcements" in runtime.registry.news_providers,
+            },
+        }
+
+    @router.get("/recommendations")
+    def recommendations(query: str | None = None) -> dict[str, Any]:
+        items = runtime.recommendations.list(query=query)
+        return {
+            "sort": "confidence_desc",
+            "items": [
+                {
+                    "recommendation_id": item.recommendation_id,
+                    "symbol": item.symbol,
+                    "confidence": item.confidence,
+                    "direction": item.direction,
+                    "summary": item.summary,
+                }
+                for item in items
+            ],
+        }
+
+    @router.get("/recommendations/{recommendation_id}")
+    def recommendation_detail(recommendation_id: str) -> dict[str, Any]:
+        item = runtime.recommendations.get(recommendation_id)
+        if item is None:
+            return {"ok": False, "error": "not_found"}
+        payload = runtime.recommendations.to_dict(item)
+        payload["ok"] = True
+        return payload
 
     return router

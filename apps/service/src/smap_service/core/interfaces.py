@@ -6,6 +6,18 @@ from typing import Any
 
 
 @dataclass
+class MarketBar:
+    symbol: str
+    timeframe: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    as_of: str
+
+
+@dataclass
 class NewsItem:
     source: str
     external_id: str
@@ -38,6 +50,17 @@ class NewsProvider(ABC):
 
     @abstractmethod
     def fetch(self) -> list[NewsItem]:
+        raise NotImplementedError
+
+
+class MarketFeedClient(ABC):
+    @property
+    @abstractmethod
+    def name(self) -> str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def fetch_latest_bars(self, symbols: list[str]) -> list[MarketBar]:
         raise NotImplementedError
 
 

@@ -1,0 +1,42 @@
+name: Cleanup Build Installer History
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  prune-build-installers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep latest 3 Build Installers runs
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const workflowId = 'build-installers.yml';
+            const keepCount = 3;
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              owner,
+              repo,
+              workflow_id: workflowId,
+              per_page: 100,
+            });
+            const ordered = runs
+              .filter(run => run.id !== context.runId)
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            const stale = ordered.slice(keepCount);
+            core.info(`Found ${ordered.length} runs, deleting ${stale.length}, keeping ${Math.min(keepCount, ordered.length)}.`);
+            for (const run of stale) {
+              core.info(`Deleting run ${run.id} (${run.name}) created ${run.created_at}`);
+              await github.rest.actions.deleteWorkflowRun({
+                owner,
+                repo,
+                run_id: run.id,
+              });
+            }

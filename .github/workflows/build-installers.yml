@@ -45,6 +45,39 @@ jobs:
         working-directory: apps/desktop
         run: npm run dist
 
+      - name: Send macOS DMG to Telegram
+        if: matrix.os == 'macos-latest'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          DMG_PATH="$(ls -1 apps/desktop/release/*.dmg 2>/dev/null | head -n 1 || true)"
+          if [ -z "${DMG_PATH}" ]; then
+            echo "No DMG found to send."
+            exit 0
+          fi
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "Telegram secrets are missing; skipping DMG delivery."
+            exit 0
+          fi
+          RESPONSE_CODE="$(curl -sS -o /tmp/tg_send_document.json -w '%{http_code}' \
+            -X POST \"https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument\" \
+            -F \"chat_id=${TELEGRAM_CHAT_ID}\" \
+            -F \"caption=Latest macOS DMG from Build Installers\" \
+            -F \"document=@${DMG_PATH}\")"
+          if [ "${RESPONSE_CODE}" != "200" ]; then
+            echo "DMG upload failed with HTTP ${RESPONSE_CODE}. Sending fallback message."
+            curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d "chat_id=${TELEGRAM_CHAT_ID}" \
+              -d "text=DMG upload from CI failed (HTTP ${RESPONSE_CODE}). Likely Telegram file-size/API limit. Asset remains in release tag smap-mac-latest."
+            cat /tmp/tg_send_document.json || true
+            exit 0
+          fi
+          echo "DMG sent to Telegram chat."
+
       - name: Upload artifacts (macOS DMG only)
         if: matrix.os == 'macos-latest'
         continue-on-error: true

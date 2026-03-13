@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {"id": "D1", "title": "Confirm secrets", "depends_on": []},
+    {"id": "D2", "title": "Add Telegram DMG upload step", "depends_on": ["D1"]},
+    {"id": "D3", "title": "Add fallback behavior", "depends_on": ["D2"]},
+    {"id": "D4", "title": "Validate and push", "depends_on": ["D3"]},
+    {"id": "D5", "title": "Verify delivery", "depends_on": ["D4"]}
+  ]
+}

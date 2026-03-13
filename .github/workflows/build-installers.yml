@@ -45,66 +45,6 @@ jobs:
         working-directory: apps/desktop
         run: npm run dist
 
-      - name: Send macOS DMG to Telegram
-        if: matrix.os == 'macos-latest'
-        continue-on-error: true
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Looking for DMG files in apps/desktop/release"
-          find apps/desktop/release -maxdepth 1 -type f -name "*.dmg" -print || true
-          DMG_PATH="$(find apps/desktop/release -maxdepth 1 -type f -name "*.dmg" | head -n 1)"
-          if [ -z "${DMG_PATH}" ] || [ ! -f "${DMG_PATH}" ]; then
-            echo "No DMG found to send."
-            exit 0
-          fi
-          if [ ! -r "${DMG_PATH}" ]; then
-            echo "DMG file is not readable: ${DMG_PATH}"
-            exit 0
-          fi
-          echo "Using DMG file: ${DMG_PATH}"
-          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
-            echo "Telegram secrets are missing; skipping DMG delivery."
-            exit 0
-          fi
-          CHUNK_DIR="/tmp/dmg_chunks"
-          rm -rf "${CHUNK_DIR}"
-          mkdir -p "${CHUNK_DIR}"
-          # Keep chunks below Telegram bot upload limits.
-          split -b 49m -d -a 3 "${DMG_PATH}" "${CHUNK_DIR}/$(basename "${DMG_PATH}").part."
-          mapfile -t CHUNKS < <(ls -1 "${CHUNK_DIR}"/*)
-          TOTAL="${#CHUNKS[@]}"
-          if [ "${TOTAL}" -eq 0 ]; then
-            echo "No chunks created from DMG."
-            exit 0
-          fi
-          for i in "${!CHUNKS[@]}"; do
-            IDX=$((i+1))
-            PART="${CHUNKS[$i]}"
-            RESPONSE_CODE="$(curl -sS -o /tmp/tg_send_document.json -w '%{http_code}' \
-              -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-              -F "chat_id=${TELEGRAM_CHAT_ID}" \
-              -F "caption=SMAP macOS DMG chunk ${IDX}/${TOTAL}: $(basename "${PART}")" \
-              -F "document=@${PART}")"
-            if [ "${RESPONSE_CODE}" != "200" ]; then
-              echo "Chunk upload failed with HTTP ${RESPONSE_CODE} for ${PART}."
-              cat /tmp/tg_send_document.json || true
-              curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                -d "chat_id=${TELEGRAM_CHAT_ID}" \
-                -d "text=Chunk upload failed at part ${IDX}/${TOTAL} (HTTP ${RESPONSE_CODE}). Release asset remains in tag smap-mac-latest."
-              exit 0
-            fi
-            # Avoid API burst/rate-limit issues on multi-part sends.
-            sleep 1
-          done
-          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=All ${TOTAL} DMG chunks sent. Recombine with: cat $(basename "${DMG_PATH}").part.* > $(basename "${DMG_PATH}")"
-          echo "DMG chunks sent to Telegram chat."
-
       - name: Upload artifacts (macOS DMG only)
         if: matrix.os == 'macos-latest'
         continue-on-error: true
@@ -151,3 +91,23 @@ jobs:
             gh release create "$TAG" --title "SMAP macOS latest" --notes "Auto-updated latest unsigned macOS DMG."
           fi
           gh release upload "$TAG" "$DMG_PATH#$ASSET_NAME" --clobber
+
+      - name: Send macOS DMG link to Telegram
+        if: matrix.os == 'macos-latest' && github.event_name == 'push' && (github.ref_name == 'master' || github.ref_name == 'main')
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DMG_URL: https://github.com/${{ github.repository }}/releases/download/smap-mac-latest/SMAP-Desktop-macOS-latest.dmg
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
+            echo "Telegram secrets are missing; skipping DMG link delivery."
+            exit 0
+          fi
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=macOS DMG download link: ${DMG_URL}
+Commit: ${GITHUB_SHA}" >/tmp/tg_send_link.json || true
+          cat /tmp/tg_send_link.json || true

@@ -5,7 +5,7 @@ const PROFILES = {
       /^pwd$/,
       /^ls(\s+[-\w./]+)?$/,
       /^git\s+status$/,
-      /^curl\s+http:\/\/127\.0\.0\.1:8787\/(health|connectors\/diagnostics|connectors\/observability)$/,
+      /^curl\s+http:\/\/127\.0\.0\.1:\d+\/(health|connectors\/diagnostics|connectors\/observability)$/,
     ],
   },
   service_logs: {

@@ -255,3 +255,40 @@
 1. Keep fix minimal to avoid onboarding regression.
 2. Add/keep resolver tests asserting returned port.
 3. Ensure API base defaults to 18787 when launch data is malformed.
+
+## Iteration 34 (Launchd Running-State Hotfix Draft)
+1. Reproduce macOS launchd installed=true/running=false state from wizard install flow.
+2. Patch launchd install ordering to deterministic bootstrap/start sequence.
+3. Add post-install running verification with bounded retries.
+4. Add darwin-focused unit tests.
+
+## Iteration 35 (Launchd Running-State Hotfix Refined)
+1. Keep compatibility fallback for environments where `bootstrap` fails.
+2. Ensure installer returns explicit failure when service never reaches running state.
+3. Keep fix scoped to desktop main process service manager and tests.
+4. Run targeted desktop tests before release handoff.
+
+## Iteration 36 (Cross-Platform Service Parity Draft)
+1. Identify platform drift in post-install running-state verification.
+2. Implement shared verifier for Linux/macOS/Windows.
+3. Add Linux and Windows behavioral tests.
+4. Validate Linux host install status path.
+
+## Iteration 37 (Cross-Platform Service Parity Refined)
+1. Keep retries bounded and deterministic.
+2. Ensure install returns failure if running state is never reached.
+3. Keep manager-specific install commands unchanged; verify only outcome parity.
+4. Report Linux provider-path blockers with concrete log evidence.
+
+## Iteration 38 (Packaged Runtime Import Fix Draft)
+1. Reproduce packaged service crash and capture first exception.
+2. Patch service entrypoint to force static app import for packager discovery.
+3. Harden PyInstaller spec hidden imports.
+4. Rebuild and retest packaged runtime endpoints.
+
+## Iteration 39 (Packaged Runtime Import Fix Refined)
+1. Keep patch minimal to avoid scheduler/API regressions.
+2. Validate both health and provider routes from packaged binary.
+3. Re-run focused service tests.
+4. Report completion evidence to user.
+

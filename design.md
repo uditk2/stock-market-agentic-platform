@@ -396,3 +396,44 @@ Root cause:
 Fix strategy:
 - Ensure service launch resolver always emits a valid numeric port.
 - Add renderer-side defensive fallback to default local port (`18787`) when launch metadata is invalid.
+
+## 13. W10 Launchd Running-State Reliability Hotfix (March 2026)
+Objective:
+- Eliminate the false-success condition where launchd reports installed but service is not running after wizard setup.
+
+Design:
+- Replace legacy launchd `unload/load` install flow with deterministic `bootout/bootstrap` followed by `kickstart`.
+- Keep a compatibility fallback to `load` if `bootstrap` fails on older environments.
+- Verify running state after install with short retries; fail install if running state is never reached.
+- Expand darwin running detection to accept both `state = running` and non-zero `pid` output.
+
+Acceptance:
+- Wizard no longer treats install as successful when launchd service remains non-running.
+- Provider flow receives accurate service readiness signal.
+
+## 14. W11 Cross-Platform Running-State Verification (March 2026)
+Objective:
+- Ensure service-install success criteria are consistent across macOS, Linux, and Windows.
+
+Design:
+- Introduce shared post-install running-state verifier for all supported platforms.
+- Keep bounded retry window after install/start sequence.
+- Return install failure when service is installed but not running after retries.
+
+Linux host validation notes:
+- Real systemd-user install test was executed with `/bin/sleep 3600` and reached `running=true`.
+- Full provider endpoint validation from packaged service binary is currently blocked by runtime packaging error (`ModuleNotFoundError: smap_service`).
+
+## 15. W12 Packaged Service Import/Runtime Fix (March 2026)
+Objective:
+- Restore packaged service binary startup so provider endpoints can be validated in Linux runtime flow.
+
+Design:
+- Replace string-based app import in service entrypoint with direct module import (`from smap_service.main import app`).
+- Add explicit `hiddenimports` in PyInstaller spec for `smap_service.main`.
+- Rebuild binary and validate `/health` and `/providers/brokers` using packaged executable.
+
+Validation outcome:
+- Rebuilt `apps/service/dist/smap-service` starts successfully.
+- `/health` and `/providers/brokers` return expected payloads.
+

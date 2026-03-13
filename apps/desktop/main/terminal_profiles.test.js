@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { isCommandAllowed } = require('./terminal_profiles');
 
 test('ops_status allows readonly health command', () => {
-  assert.equal(isCommandAllowed('ops_status', 'curl http://127.0.0.1:8787/health'), true);
+  assert.equal(isCommandAllowed('ops_status', 'curl http://127.0.0.1:18787/health'), true);
 });
 
 test('ops_status rejects chained shell command', () => {

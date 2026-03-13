@@ -346,3 +346,73 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Patch, test, push, and publish new installer build link.
 - Risks/open questions:
   - User environments with non-default custom ports still rely on valid launch metadata from main process.
+
+### Current Slice: Launchd Running-State Reliability Hotfix
+- Problem statement:
+  - macOS wizard install can finish with launchd `installed=true` but `running=false`, preventing provider availability.
+- Constraints:
+  - Keep user-scope LaunchAgent model.
+  - Keep behavior compatible with launchctl variants.
+- Design alternatives considered:
+  1. Keep load/unload and only add UI messaging: rejected (does not enforce startup).
+  2. Force app-local service process only: rejected (bypasses background-service contract).
+  3. Use bootout/bootstrap + kickstart and verify running with retries: chosen.
+- Chosen architecture:
+  - `background_service_manager` darwin install path runs `bootout`, `bootstrap` (or fallback), then `kickstart -k`.
+  - Install returns failure if running state is not observed shortly after install.
+- Interfaces/modules:
+  - `apps/desktop/main/background_service_manager.js`
+  - `apps/desktop/main/background_service_manager.test.js`
+- Delivery plan:
+  - Patch install order and status parser.
+  - Add darwin install/status tests.
+  - Ship patched desktop build.
+- Risks/open questions:
+  - If service binary crashes instantly, launchd can still leave non-running state; logs remain required for root-cause beyond install sequencing.
+
+### Current Slice: Cross-Platform Service Running-State Parity
+- Problem statement:
+  - Only macOS had install-time running verification; Linux/Windows could report success while non-running.
+- Constraints:
+  - Keep existing per-OS install semantics.
+  - Keep retry window bounded to avoid long UI stalls.
+- Design alternatives considered:
+  1. Keep platform-specific checks only: rejected (behavior drift/confusing UX).
+  2. Require immediate running with no retries: rejected (race-prone startup).
+  3. Shared post-install running verifier for all supported platforms: chosen.
+- Chosen architecture:
+  - Introduce shared `waitForRunningStatus` helper in desktop service manager.
+  - Fail install when final status remains non-running.
+- Interfaces/modules:
+  - `apps/desktop/main/background_service_manager.js`
+  - `apps/desktop/main/background_service_manager.test.js`
+- Delivery plan:
+  - Patch shared verifier.
+  - Add linux fail and windows delayed-run tests.
+  - Validate linux host install path.
+- Risks/open questions:
+  - Provider endpoint verification on this Linux host is blocked by current packaged service binary import failure, separate from service-manager sequencing.
+
+### Current Slice: Packaged Service Import Runtime Recovery
+- Problem statement:
+  - Packaged service binary crashed due missing `smap_service` import resolution.
+- Constraints:
+  - Keep packaged startup path simple and deterministic.
+  - Avoid broad packaging changes outside import inclusion.
+- Design alternatives considered:
+  1. Spec-only hidden import additions: partial, still relies on string indirection.
+  2. Entry-point direct import + spec hidden import reinforcement: chosen.
+  3. Bypass packaged binary and force source runtime: rejected for installer path.
+- Chosen architecture:
+  - Entry point imports `app` directly and passes object to `uvicorn.run`.
+  - PyInstaller spec includes `smap_service.main` in hidden imports.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/entrypoint.py`
+  - `apps/service/smap_service.spec`
+- Delivery plan:
+  - Patch import path and spec.
+  - Rebuild packaged binary.
+  - Validate provider endpoint from packaged runtime.
+- Risks/open questions:
+  - Future dynamically imported modules may still require explicit hidden imports if introduced.
+

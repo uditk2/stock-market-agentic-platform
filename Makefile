@@ -7,7 +7,7 @@ service-test:
 	cd apps/service && . .venv/bin/activate && pytest -q
 
 service-run:
-	cd apps/service && . .venv/bin/activate && uvicorn smap_service.main:app --reload --port 8787
+	cd apps/service && . .venv/bin/activate && uvicorn smap_service.main:app --reload --port 18787
 
 desktop-install:
 	cd apps/desktop && npm install

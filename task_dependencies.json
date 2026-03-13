@@ -8,6 +8,9 @@
     {"id": "W6", "name": "Real Connector Baseline", "depends_on": ["W2"]},
     {"id": "W7", "name": "CI Packaging Hardening", "depends_on": ["W4", "W5", "W6"]},
     {"id": "W8", "name": "Integration and Ops Readiness", "depends_on": ["W4", "W6"]},
-    {"id": "W9", "name": "GitHub Issue Sync and Tracking", "depends_on": ["W7", "W8"]}
+    {"id": "W9", "name": "GitHub Issue Sync and Tracking", "depends_on": ["W7", "W8"]},
+    {"id": "W10", "name": "macOS Launchd Running-State Reliability Hotfix", "depends_on": ["W5", "W8"]},
+    {"id": "W11", "name": "Cross-Platform Service Running-State Verification", "depends_on": ["W10", "W5"]},
+    {"id": "W12", "name": "Packaged Service Import Runtime Recovery", "depends_on": ["W11", "W6"]}
   ]
 }

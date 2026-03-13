@@ -14,6 +14,25 @@ const SERVICE_IDENTIFIERS = {
   windows: 'SMAPService',
 };
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForRunningStatus({ platform, run, maxAttempts = 6, delayMs = 500 }) {
+  let latestStatus = await getBackgroundServiceStatus({ platform, run });
+  if (latestStatus.running) {
+    return latestStatus;
+  }
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await sleep(delayMs);
+    latestStatus = await getBackgroundServiceStatus({ platform, run });
+    if (latestStatus.running) {
+      return latestStatus;
+    }
+  }
+  return latestStatus;
+}
+
 function runCommand(command, args) {
   return new Promise((resolve) => {
     const child = spawn(command, args, { shell: false });
@@ -55,12 +74,13 @@ async function getBackgroundServiceStatus(options = {}) {
   if (platform === 'darwin') {
     const uid = process.getuid ? String(process.getuid()) : '501';
     const probe = await run('launchctl', ['print', `gui/${uid}/${SERVICE_IDENTIFIERS.macos}`]);
+    const running = probe.ok && (probe.stdout.includes('state = running') || /pid = [1-9]\d*/.test(probe.stdout));
     return {
       supported: true,
       manager: 'launchd',
       identifier: SERVICE_IDENTIFIERS.macos,
       installed: probe.ok,
-      running: probe.ok && probe.stdout.includes('state = running'),
+      running,
       detail: probe.stderr || probe.stdout || '',
     };
   }
@@ -119,8 +139,31 @@ async function installOnMacOS(launchSpec, run) {
   });
   fs.writeFileSync(plistPath, plistContent, 'utf8');
 
-  await run('launchctl', ['unload', plistPath]);
-  return run('launchctl', ['load', plistPath]);
+  const uid = process.getuid ? String(process.getuid()) : '501';
+  const domain = `gui/${uid}`;
+  const serviceTarget = `${domain}/${SERVICE_IDENTIFIERS.macos}`;
+
+  await run('launchctl', ['bootout', domain, plistPath]);
+  const bootstrap = await run('launchctl', ['bootstrap', domain, plistPath]);
+  if (!bootstrap.ok) {
+    const fallback = await run('launchctl', ['load', plistPath]);
+    if (!fallback.ok) {
+      return fallback;
+    }
+  }
+
+  const kickstart = await run('launchctl', ['kickstart', '-k', serviceTarget]);
+  if (!kickstart.ok) {
+    return kickstart;
+  }
+
+  return {
+    ok: true,
+    exitCode: 0,
+    stdout: kickstart.stdout,
+    stderr: kickstart.stderr,
+    error: null,
+  };
 }
 
 async function installOnWindows(launchSpec, run) {
@@ -164,6 +207,26 @@ async function installBackgroundService(launchSpec, options = {}) {
   }
 
   const status = await getBackgroundServiceStatus({ platform, run });
+  if (result.ok && status.supported && !status.running) {
+    const finalStatus = await waitForRunningStatus({ platform, run });
+    if (finalStatus.running) {
+      return {
+        ok: true,
+        exitCode: result.exitCode,
+        stdout: result.stdout,
+        stderr: result.stderr,
+        status: finalStatus,
+      };
+    }
+    const managerLabel = finalStatus.manager || status.manager || platform;
+    return {
+      ok: false,
+      exitCode: result.exitCode || 1,
+      stdout: result.stdout,
+      stderr: result.stderr || `${managerLabel} service installed but not running after install/start sequence`,
+      status: finalStatus,
+    };
+  }
   return {
     ok: result.ok,
     exitCode: result.exitCode,

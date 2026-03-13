@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {"id": "C1", "title": "Track issue", "depends_on": []},
+    {"id": "C2", "title": "Implement split+send", "depends_on": ["C1"]},
+    {"id": "C3", "title": "Add reconstruction instructions", "depends_on": ["C2"]},
+    {"id": "C4", "title": "Validate and push", "depends_on": ["C3"]},
+    {"id": "C5", "title": "Verify and close", "depends_on": ["C4"]}
+  ]
+}

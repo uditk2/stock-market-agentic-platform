@@ -70,20 +70,40 @@ jobs:
             echo "Telegram secrets are missing; skipping DMG delivery."
             exit 0
           fi
-          RESPONSE_CODE="$(curl -sS -o /tmp/tg_send_document.json -w '%{http_code}' \
-            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
-            -F "chat_id=${TELEGRAM_CHAT_ID}" \
-            -F "caption=Latest macOS DMG from Build Installers" \
-            -F "document=@${DMG_PATH}")"
-          if [ "${RESPONSE_CODE}" != "200" ]; then
-            echo "DMG upload failed with HTTP ${RESPONSE_CODE}. Sending fallback message."
-            curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-              -d "chat_id=${TELEGRAM_CHAT_ID}" \
-              -d "text=DMG upload from CI failed (HTTP ${RESPONSE_CODE}). Likely Telegram file-size/API limit. Asset remains in release tag smap-mac-latest."
-            cat /tmp/tg_send_document.json || true
+          CHUNK_DIR="/tmp/dmg_chunks"
+          rm -rf "${CHUNK_DIR}"
+          mkdir -p "${CHUNK_DIR}"
+          # Keep chunks below Telegram bot upload limits.
+          split -b 49m -d -a 3 "${DMG_PATH}" "${CHUNK_DIR}/$(basename "${DMG_PATH}").part."
+          mapfile -t CHUNKS < <(ls -1 "${CHUNK_DIR}"/*)
+          TOTAL="${#CHUNKS[@]}"
+          if [ "${TOTAL}" -eq 0 ]; then
+            echo "No chunks created from DMG."
             exit 0
           fi
-          echo "DMG sent to Telegram chat."
+          for i in "${!CHUNKS[@]}"; do
+            IDX=$((i+1))
+            PART="${CHUNKS[$i]}"
+            RESPONSE_CODE="$(curl -sS -o /tmp/tg_send_document.json -w '%{http_code}' \
+              -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+              -F "chat_id=${TELEGRAM_CHAT_ID}" \
+              -F "caption=SMAP macOS DMG chunk ${IDX}/${TOTAL}: $(basename "${PART}")" \
+              -F "document=@${PART}")"
+            if [ "${RESPONSE_CODE}" != "200" ]; then
+              echo "Chunk upload failed with HTTP ${RESPONSE_CODE} for ${PART}."
+              cat /tmp/tg_send_document.json || true
+              curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                -d "chat_id=${TELEGRAM_CHAT_ID}" \
+                -d "text=Chunk upload failed at part ${IDX}/${TOTAL} (HTTP ${RESPONSE_CODE}). Release asset remains in tag smap-mac-latest."
+              exit 0
+            fi
+            # Avoid API burst/rate-limit issues on multi-part sends.
+            sleep 1
+          done
+          curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=All ${TOTAL} DMG chunks sent. Recombine with: cat $(basename "${DMG_PATH}").part.* > $(basename "${DMG_PATH}")"
+          echo "DMG chunks sent to Telegram chat."
 
       - name: Upload artifacts (macOS DMG only)
         if: matrix.os == 'macos-latest'

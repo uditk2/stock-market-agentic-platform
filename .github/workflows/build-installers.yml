@@ -54,20 +54,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          DMG_PATH="$(ls -1 apps/desktop/release/*.dmg 2>/dev/null | head -n 1 || true)"
-          if [ -z "${DMG_PATH}" ]; then
+          echo "Looking for DMG files in apps/desktop/release"
+          find apps/desktop/release -maxdepth 1 -type f -name "*.dmg" -print || true
+          DMG_PATH="$(find apps/desktop/release -maxdepth 1 -type f -name "*.dmg" | head -n 1)"
+          if [ -z "${DMG_PATH}" ] || [ ! -f "${DMG_PATH}" ]; then
             echo "No DMG found to send."
             exit 0
           fi
+          if [ ! -r "${DMG_PATH}" ]; then
+            echo "DMG file is not readable: ${DMG_PATH}"
+            exit 0
+          fi
+          echo "Using DMG file: ${DMG_PATH}"
           if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
             echo "Telegram secrets are missing; skipping DMG delivery."
             exit 0
           fi
           RESPONSE_CODE="$(curl -sS -o /tmp/tg_send_document.json -w '%{http_code}' \
-            -X POST \"https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument\" \
-            -F \"chat_id=${TELEGRAM_CHAT_ID}\" \
-            -F \"caption=Latest macOS DMG from Build Installers\" \
-            -F \"document=@${DMG_PATH}\")"
+            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendDocument" \
+            -F "chat_id=${TELEGRAM_CHAT_ID}" \
+            -F "caption=Latest macOS DMG from Build Installers" \
+            -F "document=@${DMG_PATH}")"
           if [ "${RESPONSE_CODE}" != "200" ]; then
             echo "DMG upload failed with HTTP ${RESPONSE_CODE}. Sending fallback message."
             curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \

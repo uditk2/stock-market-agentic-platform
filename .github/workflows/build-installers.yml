@@ -47,6 +47,7 @@ jobs:
 
       - name: Upload artifacts (macOS DMG only)
         if: matrix.os == 'macos-latest'
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: smap-installers-${{ matrix.os }}
@@ -56,6 +57,7 @@ jobs:
 
       - name: Upload artifacts (Windows)
         if: matrix.os == 'windows-latest'
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: smap-installers-${{ matrix.os }}
@@ -66,6 +68,7 @@ jobs:
 
       - name: Upload artifacts (Linux)
         if: matrix.os == 'ubuntu-latest'
+        continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
           name: smap-installers-${{ matrix.os }}

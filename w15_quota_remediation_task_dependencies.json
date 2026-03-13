@@ -1,0 +1,11 @@
+{
+  "tasks": [
+    {"id": "Q1", "title": "Capture evidence", "depends_on": []},
+    {"id": "Q2", "title": "Track issue", "depends_on": ["Q1"]},
+    {"id": "Q3", "title": "Delete artifacts", "depends_on": ["Q2"]},
+    {"id": "Q4", "title": "Prune runs globally", "depends_on": ["Q2"]},
+    {"id": "Q5", "title": "Re-run Build Installers", "depends_on": ["Q3", "Q4"]},
+    {"id": "Q6", "title": "Root-cause explanation", "depends_on": ["Q5"]},
+    {"id": "Q7", "title": "Close + notify", "depends_on": ["Q6"]}
+  ]
+}

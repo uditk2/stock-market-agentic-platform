@@ -292,3 +292,28 @@
 3. Re-run focused service tests.
 4. Report completion evidence to user.
 
+## Iteration 40 (W13 User Request Draft)
+1. Convert Telegram request into separate tracked issues for:
+- news/data visibility
+- broker settings menu migration
+- terminal default hidden state
+- final UI polish
+2. Define strict sequential completion order and close each issue before moving next.
+3. Add diagnostics + refresh UX to explain empty recommendation/news states.
+4. Move broker controls into a dedicated Settings UI surface.
+5. Add terminal open/close control and keep terminal hidden by default.
+6. Apply final visual polish pass once structure is stable.
+
+## Iteration 41 (W13 User Request Refined)
+1. Keep existing API contracts; solve visibility/UX first rather than backend connector redesign.
+2. Add explicit user-facing status text for connector readiness and ingestion recency.
+3. Ensure onboarding still routes users to broker setup even after moving controls to Settings.
+4. Keep terminal profile safety model unchanged; only alter visibility/toggle behavior.
+5. Run desktop tests per issue and close GitHub issue immediately after verification.
+
+## Iteration 42 (W13 Execution Refined)
+1. Issue #20: deliver data status + refresh + empty-state clarity.
+2. Issue #21: deliver Settings menu broker configuration migration.
+3. Issue #22: deliver terminal hidden-by-default with open/close control.
+4. Issue #23: deliver UI polish pass and alignment tweaks.
+5. Update docs/context and publish user-facing summary after all issue closures.

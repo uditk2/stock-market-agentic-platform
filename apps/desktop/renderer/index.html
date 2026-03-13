@@ -13,38 +13,83 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
-        --smap-surface: #f4f7fb;
+        --smap-surface: #eef3f9;
         --smap-card: #ffffff;
-        --smap-border: #dce3ed;
+        --smap-border: #d2deec;
+        --smap-ink: #102032;
+        --smap-muted: #526072;
+        --smap-accent: #0f6fb8;
+        --smap-accent-soft: #ddecfa;
       }
       body {
-        background: linear-gradient(160deg, #f9fbfe 0%, #edf3fb 100%);
+        background:
+          radial-gradient(1200px 500px at 0% -20%, #dcecff 0%, transparent 65%),
+          linear-gradient(160deg, #f8fbff 0%, #edf3fb 45%, #eef2f7 100%);
+        color: var(--smap-ink);
+        font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
         min-height: 100vh;
       }
       .app-shell {
         max-width: 1260px;
       }
       .glass-nav {
-        background: rgba(255, 255, 255, 0.88);
-        border: 1px solid var(--smap-border);
-        backdrop-filter: blur(6px);
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #c8d7e8;
+        box-shadow: 0 10px 30px rgba(14, 46, 84, 0.08);
+        backdrop-filter: blur(8px);
       }
       .card {
         border: 1px solid var(--smap-border);
-        box-shadow: 0 8px 20px rgba(19, 33, 68, 0.06);
+        box-shadow: 0 12px 30px rgba(17, 43, 79, 0.08);
+        background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+      }
+      .card-title,
+      h6 {
+        letter-spacing: -0.01em;
+        font-weight: 700;
+      }
+      .btn {
+        border-radius: 10px;
+      }
+      .btn-outline-primary {
+        border-color: #8fb8df;
+        color: #1d4f80;
+      }
+      .btn-outline-primary:hover {
+        background: #eef6ff;
+        border-color: #6ca4d6;
+        color: #15436f;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #1b75be, #0e5f9f);
+        border-color: #0e5f9f;
       }
       .recommendation-list {
         max-height: 520px;
         overflow-y: auto;
+        border: 1px solid #e2eaf4;
+        background: #fff;
       }
       .list-group-item {
         border: 0;
         border-bottom: 1px solid #eef2f8;
+        transition: background 120ms ease-in, color 120ms ease-in;
       }
       .list-group-item:last-child {
         border-bottom: 0;
+      }
+      .list-group-item.active {
+        background: linear-gradient(135deg, #edf5ff, #e5f1ff);
+        color: #11385b;
+        border-left: 3px solid #1776c3;
       }
       .confidence-badge {
         min-width: 84px;
@@ -65,7 +110,7 @@
         color: #d6e2ff;
         border-radius: 10px;
         border: 1px solid #1f2b44;
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-size: 12px;
         line-height: 1.45;
         min-height: 280px;
@@ -80,6 +125,28 @@
       }
       .wizard-fail {
         color: #b02a37;
+      }
+      .status-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 8px;
+      }
+      .status-item {
+        border: 1px solid #e2e8f1;
+        border-radius: 10px;
+        background: #ffffff;
+        padding: 8px 10px;
+      }
+      .status-label {
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: #586273;
+      }
+      .status-value {
+        font-size: 12px;
+        color: #1f2937;
+        margin-top: 4px;
       }
     </style>
   </head>
@@ -152,50 +219,48 @@
               <i class="bi bi-arrow-clockwise"></i>
               Refresh
             </button>
+            <button class="btn btn-sm btn-outline-dark" id="openSettingsBtn">
+              <i class="bi bi-gear"></i>
+              Settings
+            </button>
+            <button class="btn btn-sm btn-outline-primary" id="toggleTerminalBtn">
+              <i class="bi bi-terminal"></i>
+              Open Terminal
+            </button>
             <button class="btn btn-sm btn-outline-success" id="startServiceBtn">Start</button>
             <button class="btn btn-sm btn-outline-danger" id="stopServiceBtn">Stop</button>
           </div>
         </nav>
 
         <div id="workspaceRow" class="row g-3">
-          <div id="brokerColumn" class="col-lg-4">
-            <div class="card h-100 rounded-4">
-              <div class="card-body">
-                <h5 class="card-title mb-3">Broker Configuration</h5>
-                <div class="mb-3">
-                  <label class="form-label" for="providerSelect">Broker Provider</label>
-                  <div class="input-group">
-                    <select class="form-select" id="providerSelect"></select>
-                    <button class="btn btn-outline-secondary" id="loadProviderBtn">Reload</button>
-                  </div>
-                  <div id="providerHelp" class="form-text">
-                    Credentials are encrypted at rest in local SQLite.
-                  </div>
-                </div>
-
-                <div class="mb-2">
-                  <label class="form-label" for="providerCreds">Credentials JSON</label>
-                  <textarea class="form-control font-monospace" id="providerCreds" rows="7"></textarea>
-                </div>
-                <div id="requiredFields" class="small text-secondary mb-3"></div>
-
-                <div class="d-flex align-items-center gap-2">
-                  <button class="btn btn-primary" id="saveProviderBtn">
-                    <i class="bi bi-shield-lock"></i>
-                    Save Credentials
-                  </button>
-                  <span id="providerStatus" class="text-secondary small">Not saved</span>
-                </div>
+          <div id="recommendationsColumn" class="col-12">
+            <div id="brokerSetupBanner" class="alert alert-warning d-none" role="alert">
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <span>Setup step: configure broker credentials in Settings to continue.</span>
+                <button class="btn btn-sm btn-warning" id="openSettingsFromBannerBtn">
+                  <i class="bi bi-gear"></i>
+                  Open Settings
+                </button>
               </div>
             </div>
-          </div>
-
-          <div id="recommendationsColumn" class="col-lg-8">
             <div class="card rounded-4">
               <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                   <h5 class="card-title m-0">Recommendations</h5>
-                  <span class="badge text-bg-primary-subtle border">Default sort: Confidence</span>
+                  <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-primary" id="refreshDataBtn">
+                      <i class="bi bi-arrow-repeat"></i>
+                      Refresh Data
+                    </button>
+                    <span class="badge text-bg-primary-subtle border">Default sort: Confidence</span>
+                  </div>
+                </div>
+                <p class="text-secondary small mb-3">
+                  Use <strong>Refresh Data</strong> first, then search/select instruments to inspect news, technicals, and strategy rationale.
+                </p>
+
+                <div id="dataStatusPanel" class="border rounded-3 bg-light-subtle px-3 py-2 mb-3 small text-secondary">
+                  Data status unavailable.
                 </div>
 
                 <div class="input-group mb-3">
@@ -246,7 +311,7 @@
           </div>
         </div>
 
-        <div id="terminalCard" class="card rounded-4">
+        <div id="terminalCard" class="card rounded-4 d-none">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
               <h5 class="card-title m-0">Embedded Terminal</h5>
@@ -290,6 +355,42 @@
       </div>
     </main>
 
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Settings</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <h6 class="mb-3">Broker Configuration</h6>
+            <div class="mb-3">
+              <label class="form-label" for="providerSelect">Broker Provider</label>
+              <div class="input-group">
+                <select class="form-select" id="providerSelect"></select>
+                <button class="btn btn-outline-secondary" id="loadProviderBtn">Reload</button>
+              </div>
+              <div id="providerHelp" class="form-text">
+                Credentials are encrypted at rest in local SQLite.
+              </div>
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="providerCreds">Credentials JSON</label>
+              <textarea class="form-control font-monospace" id="providerCreds" rows="7"></textarea>
+            </div>
+            <div id="requiredFields" class="small text-secondary mb-3"></div>
+            <div class="d-flex align-items-center gap-2">
+              <button class="btn btn-primary" id="saveProviderBtn">
+                <i class="bi bi-shield-lock"></i>
+                Save Credentials
+              </button>
+              <span id="providerStatus" class="text-secondary small">Not saved</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 1080">
       <div id="toast" class="toast align-items-center border-0 text-bg-dark" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
@@ -309,12 +410,15 @@
       const hasTerminalBridge = Boolean(window.smapBridge && window.smapBridge.terminalStart);
       const toast = new bootstrap.Toast(document.getElementById("toast"), { delay: 2200 });
       let currentDetail = null;
+      let selectedRecommendationId = null;
       let terminalStarted = false;
       let workspaceLocked = true;
       let onboardingStage = "setup";
       let lastWizardPayload = null;
       let lastBackgroundReady = false;
       let providerConfigured = false;
+      let settingsModal = null;
+      let terminalVisible = false;
       const lockBypassControlIds = new Set([
         "wizardDetectBtn",
         "wizardNextBtn",
@@ -327,6 +431,8 @@
         "saveProviderBtn",
         "refreshServiceBtn",
         "startServiceBtn",
+        "openSettingsBtn",
+        "openSettingsFromBannerBtn",
       ]);
 
       function renderProviderFallback(message, helpText = "") {
@@ -364,7 +470,7 @@
         });
         const providerHelp = document.getElementById("providerHelp");
         providerHelp.innerText = locked
-          ? "Workspace is locked until wizard checks pass. You can still select/reload broker provider."
+          ? "Workspace is locked until wizard checks pass. You can still manage broker settings."
           : "Credentials are encrypted at rest in local SQLite.";
       }
 
@@ -404,38 +510,60 @@
         const wizardCard = document.getElementById("wizardCard");
         const appNav = document.getElementById("appNav");
         const workspaceRow = document.getElementById("workspaceRow");
-        const brokerColumn = document.getElementById("brokerColumn");
         const recommendationsColumn = document.getElementById("recommendationsColumn");
-        const terminalCard = document.getElementById("terminalCard");
+        const brokerSetupBanner = document.getElementById("brokerSetupBanner");
         if (stage === "setup") {
           wizardCard.classList.remove("d-none");
           appNav.classList.add("d-none");
           workspaceRow.classList.add("d-none");
           terminalCard.classList.add("d-none");
           recommendationsColumn.classList.remove("d-none");
-          brokerColumn.classList.remove("col-lg-12");
-          brokerColumn.classList.add("col-lg-4");
+          brokerSetupBanner.classList.add("d-none");
           setWorkspaceLocked(true);
+          setTerminalVisibility(false);
         } else if (stage === "broker") {
           wizardCard.classList.remove("d-none");
-          appNav.classList.add("d-none");
+          appNav.classList.remove("d-none");
           workspaceRow.classList.remove("d-none");
-          recommendationsColumn.classList.add("d-none");
-          brokerColumn.classList.remove("col-lg-4");
-          brokerColumn.classList.add("col-lg-12");
-          terminalCard.classList.add("d-none");
+          recommendationsColumn.classList.remove("d-none");
+          brokerSetupBanner.classList.remove("d-none");
           setWorkspaceLocked(true);
+          setTerminalVisibility(false);
+          showSettingsModal();
         } else {
           wizardCard.classList.add("d-none");
           appNav.classList.remove("d-none");
           workspaceRow.classList.remove("d-none");
           recommendationsColumn.classList.remove("d-none");
-          brokerColumn.classList.remove("col-lg-12");
-          brokerColumn.classList.add("col-lg-4");
-          terminalCard.classList.remove("d-none");
+          brokerSetupBanner.classList.add("d-none");
           setWorkspaceLocked(false);
+          setTerminalVisibility(false);
         }
         updateWizardStepUi();
+      }
+
+      function showSettingsModal() {
+        if (!settingsModal) {
+          settingsModal = new bootstrap.Modal(document.getElementById("settingsModal"));
+        }
+        settingsModal.show();
+      }
+
+      function hideSettingsModal() {
+        if (!settingsModal) {
+          return;
+        }
+        settingsModal.hide();
+      }
+
+      function setTerminalVisibility(visible) {
+        terminalVisible = Boolean(visible);
+        const terminalCard = document.getElementById("terminalCard");
+        const toggleBtn = document.getElementById("toggleTerminalBtn");
+        terminalCard.classList.toggle("d-none", !terminalVisible);
+        toggleBtn.innerHTML = terminalVisible
+          ? '<i class="bi bi-x-circle"></i> Close Terminal'
+          : '<i class="bi bi-terminal"></i> Open Terminal';
       }
 
       function renderBackgroundStatus(status) {
@@ -600,7 +728,7 @@
           await runWizardChecks();
           if (lastWizardPayload?.ok) {
             setOnboardingStage("broker");
-            showToast("CLI checks passed. Enter broker details.");
+            showToast("CLI checks passed. Open Settings and enter broker details.");
           }
           return;
         }
@@ -608,11 +736,13 @@
           if (!providerConfigured) {
             const ok = await loadProvidersWithRetry(3, 800);
             if (ok) {
-              showToast("Enter credentials and click Save to continue.");
+              showToast("Open Settings, enter credentials, and click Save to continue.");
             }
+            showSettingsModal();
             return;
           }
           setOnboardingStage("home");
+          hideSettingsModal();
           showToast("Setup complete. Welcome to SMAP Home.");
           return;
         }
@@ -758,6 +888,7 @@
           document.getElementById("providerStatus").innerText = `Saved for ${payload.selected_provider}`;
           if (onboardingStage === "broker") {
             setOnboardingStage("home");
+            hideSettingsModal();
             showToast("Provider saved. Setup complete.");
           } else {
             showToast("Provider credentials saved.");
@@ -771,6 +902,7 @@
         const element = document.createElement("button");
         element.type = "button";
         element.className = "list-group-item list-group-item-action";
+        element.dataset.recommendationId = item.recommendation_id;
         element.innerHTML = `
           <div class="d-flex w-100 justify-content-between">
             <strong>${item.symbol}</strong>
@@ -783,13 +915,56 @@
         return element;
       }
 
+      function setRecommendationActive(recommendationId) {
+        const rows = document.querySelectorAll("#recommendationsList .list-group-item");
+        rows.forEach((row) => {
+          row.classList.toggle("active", row.dataset.recommendationId === recommendationId);
+        });
+      }
+
       function renderTab(tabId, rows) {
         const target = document.getElementById(tabId);
         if (!rows || !rows.length) {
-          target.innerHTML = `<p class="text-secondary small">No signals available.</p>`;
+          target.innerHTML = `<p class="text-secondary small mb-0">No signals available yet. Use Refresh Data and check connector status above.</p>`;
           return;
         }
         target.innerHTML = `<ul class="mb-0">${rows.map((row) => `<li>${row}</li>`).join("")}</ul>`;
+      }
+
+      function formatRunSummary(run) {
+        if (!run) {
+          return "No runs recorded yet";
+        }
+        const when = run.finished_at ? new Date(run.finished_at).toLocaleString() : "unknown time";
+        return `${run.status} | records=${run.records_processed ?? 0} | ${when}`;
+      }
+
+      async function loadConnectorDiagnostics() {
+        try {
+          const payload = await api("/connectors/diagnostics");
+          const marketSummary = formatRunSummary(payload.market?.last_run);
+          const newsSummary = formatRunSummary(payload.news?.last_news_run);
+          const announcementsSummary = formatRunSummary(payload.news?.last_announcements_run);
+          document.getElementById("dataStatusPanel").innerHTML = `
+            <div class="status-grid">
+              <div class="status-item">
+                <div class="status-label">Market</div>
+                <div class="status-value">${marketSummary}</div>
+              </div>
+              <div class="status-item">
+                <div class="status-label">News</div>
+                <div class="status-value">${newsSummary}</div>
+              </div>
+              <div class="status-item">
+                <div class="status-label">Announcements</div>
+                <div class="status-value">${announcementsSummary}</div>
+              </div>
+            </div>
+          `;
+        } catch (error) {
+          document.getElementById("dataStatusPanel").innerHTML =
+            `Connector diagnostics unavailable: ${error.message}. Ensure the service is running, then click Refresh Data.`;
+        }
       }
 
       function renderDetail() {
@@ -820,13 +995,39 @@
                 showToast("Recommendation detail unavailable.");
                 return;
               }
+              selectedRecommendationId = item.recommendation_id;
+              setRecommendationActive(selectedRecommendationId);
               currentDetail = detail;
               renderDetail();
             }),
           );
         });
         if (!payload.items.length) {
-          container.innerHTML = `<div class="recommendation-empty">No recommendations found.</div>`;
+          container.innerHTML = `<div class="recommendation-empty">No recommendations found. Click Refresh Data and verify connector status.</div>`;
+          currentDetail = null;
+          selectedRecommendationId = null;
+          renderDetail();
+        } else if (!currentDetail) {
+          const first = payload.items[0];
+          const detail = await api(`/recommendations/${first.recommendation_id}`);
+          if (detail.ok) {
+            selectedRecommendationId = first.recommendation_id;
+            setRecommendationActive(selectedRecommendationId);
+            currentDetail = detail;
+            renderDetail();
+          }
+        } else if (selectedRecommendationId) {
+          setRecommendationActive(selectedRecommendationId);
+        }
+        return payload.items.length;
+      }
+
+      async function refreshDataWorkflow(showSuccessToast = true) {
+        await refreshServiceStatus();
+        await loadConnectorDiagnostics();
+        const count = await loadRecommendations();
+        if (showSuccessToast) {
+          showToast(count ? `Refreshed ${count} recommendation(s).` : "Refreshed. No recommendations yet.");
         }
       }
 
@@ -945,8 +1146,21 @@
           showToast("Provider state refreshed.");
         }
       });
+      document.getElementById("openSettingsBtn").addEventListener("click", showSettingsModal);
+      document.getElementById("openSettingsFromBannerBtn").addEventListener("click", showSettingsModal);
+      document.getElementById("toggleTerminalBtn").addEventListener("click", () => {
+        if (onboardingStage !== "home") {
+          return;
+        }
+        setTerminalVisibility(!terminalVisible);
+      });
       document.getElementById("saveProviderBtn").addEventListener("click", saveProvider);
       document.getElementById("searchBtn").addEventListener("click", loadRecommendations);
+      document.getElementById("refreshDataBtn").addEventListener("click", () => {
+        refreshDataWorkflow(true).catch((error) => {
+          showToast(`Refresh failed: ${error.message}`);
+        });
+      });
       document.getElementById("searchInput").addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           loadRecommendations();
@@ -989,6 +1203,7 @@
           refreshWizardCliTargets();
         }
         if (!hasTerminalBridge) {
+          document.getElementById("toggleTerminalBtn").dataset.forceDisabled = "1";
           document.getElementById("terminalStartBtn").dataset.forceDisabled = "1";
           document.getElementById("terminalStopBtn").dataset.forceDisabled = "1";
           document.getElementById("terminalSendBtn").dataset.forceDisabled = "1";
@@ -1009,6 +1224,7 @@
           // retry helper handles fallback + user messaging
         }
         try {
+          await loadConnectorDiagnostics();
           await loadRecommendations();
         } catch (error) {
           showToast(`Recommendation warning: ${error.message}`);

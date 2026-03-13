@@ -259,6 +259,29 @@ Chosen approach:
 - Add a macOS-only post-build step that publishes DMG to release tag `smap-mac-latest`.
 - Use `gh release upload --clobber` to keep asset updated each push.
 
+## 16. W13 UX + Data Visibility Fixes (March 2026)
+Objective:
+- Address user-reported confusion where recommendations/news appear empty, broker config clutters home, and terminal is visible by default.
+
+Locked execution order (user requested one-by-one issue completion):
+1. News/data visibility and refresh workflow.
+2. Move broker configuration into Settings menu.
+3. Keep terminal hidden by default with explicit open/close control.
+4. UI polish pass.
+
+Design constraints:
+- Preserve existing service API contracts for recommendations/providers/diagnostics.
+- Keep onboarding gate behavior functional.
+- Keep terminal execution safety model unchanged (profile restrictions + advanced mode).
+- Track each item as a separate GitHub issue and close incrementally.
+
+Chosen approach:
+- Add a home "Data Status" section using existing diagnostics endpoints.
+- Add explicit refresh actions and clearer empty/error messaging.
+- Move broker controls from primary home column into a Settings surface.
+- Default terminal section hidden; expose a top-level toggle action.
+- Apply focused UI polish after structural changes to avoid duplicate churn.
+
 ## 16. Wizard Detection + Provider Recovery Hardening (March 2026)
 Objective:
 - Resolve false-negative Codex CLI detection and missing provider list during blocked wizard state.
@@ -436,4 +459,3 @@ Design:
 Validation outcome:
 - Rebuilt `apps/service/dist/smap-service` starts successfully.
 - `/health` and `/providers/brokers` return expected payloads.
-

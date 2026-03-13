@@ -11,6 +11,10 @@
     {"id": "W9", "name": "GitHub Issue Sync and Tracking", "depends_on": ["W7", "W8"]},
     {"id": "W10", "name": "macOS Launchd Running-State Reliability Hotfix", "depends_on": ["W5", "W8"]},
     {"id": "W11", "name": "Cross-Platform Service Running-State Verification", "depends_on": ["W10", "W5"]},
-    {"id": "W12", "name": "Packaged Service Import Runtime Recovery", "depends_on": ["W11", "W6"]}
+    {"id": "W12", "name": "Packaged Service Import Runtime Recovery", "depends_on": ["W11", "W6"]},
+    {"id": "W13A", "name": "News/Data Visibility and Refresh Workflow", "depends_on": ["W12"]},
+    {"id": "W13B", "name": "Broker Configuration in Settings Menu", "depends_on": ["W13A"]},
+    {"id": "W13C", "name": "Terminal Hidden by Default with Toggle", "depends_on": ["W13B"]},
+    {"id": "W13D", "name": "Post-Setup UI Polish Pass", "depends_on": ["W13C"]}
   ]
 }

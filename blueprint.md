@@ -268,7 +268,39 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Run desktop tests.
   - Push and verify Build Installers CI.
 - Risks/open questions:
-  - PATH fallback covers common install paths; edge-case custom install locations may still require manual PATH configuration.
+- PATH fallback covers common install paths; edge-case custom install locations may still require manual PATH configuration.
+
+### Current Slice: W13 User-Requested UX and Data Workflow
+- Problem statement:
+  - User cannot tell why recommendations/news are empty, broker configuration should be inside Settings, terminal should be hidden by default, and overall home UX needs polish.
+- Constraints:
+  - Implement and track as separate GitHub issues, completed sequentially.
+  - Preserve existing service API contracts and terminal safety controls.
+  - Keep onboarding flow stable while moving broker controls to Settings.
+- Design alternatives considered:
+  1. Single bulk UI rewrite in one change: rejected (high risk, poor traceability).
+  2. Separate issues but implement out of order: rejected (conflicts with user ask).
+  3. Sequential issue-by-issue delivery with tests and closures: chosen.
+- Chosen architecture:
+  - Issue #20: add diagnostics-driven data status + refresh/empty-state UX.
+  - Issue #21: move broker configuration into Settings modal/offcanvas.
+  - Issue #22: hide terminal by default; add explicit open/close control.
+  - Issue #23: polish layout and action hierarchy after structural moves.
+- Interfaces/modules:
+  - `apps/desktop/renderer/index.html`
+  - `apps/desktop/preload/preload.js` (only if new bridge hooks are needed)
+  - `apps/desktop/main/main.js` (only if new IPC hooks are needed)
+  - `issues/issue-023-news-data-visibility-and-refresh.md`
+  - `issues/issue-024-broker-configuration-settings-menu.md`
+  - `issues/issue-025-terminal-collapsed-by-default.md`
+  - `issues/issue-026-ui-polish-pass.md`
+- Delivery plan:
+  1. Complete Issue #20 and close.
+  2. Complete Issue #21 and close.
+  3. Complete Issue #22 and close.
+  4. Complete Issue #23 and close.
+- Risks/open questions:
+  - If user expects live external news without API keys, diagnostics must clearly explain missing provider credentials/keys.
 
 ## Risks and Open Questions
 ### Risks
@@ -415,4 +447,3 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Validate provider endpoint from packaged runtime.
 - Risks/open questions:
   - Future dynamically imported modules may still require explicit hidden imports if introduced.
-

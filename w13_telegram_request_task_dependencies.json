@@ -1,0 +1,24 @@
+{
+  "tasks": [
+    {
+      "id": "ISSUE20",
+      "name": "News/data visibility and refresh workflow",
+      "depends_on": []
+    },
+    {
+      "id": "ISSUE21",
+      "name": "Move broker configuration into Settings menu",
+      "depends_on": ["ISSUE20"]
+    },
+    {
+      "id": "ISSUE22",
+      "name": "Hide terminal by default with explicit open/close control",
+      "depends_on": ["ISSUE21"]
+    },
+    {
+      "id": "ISSUE23",
+      "name": "UI polish pass for post-setup home workflow",
+      "depends_on": ["ISSUE22"]
+    }
+  ]
+}

@@ -399,7 +399,7 @@
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title">Settings</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <button type="button" class="btn-close" id="settingsModalCloseBtn" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
           <div class="modal-body">
             <h6 class="mb-3">Broker Configuration</h6>
@@ -434,7 +434,7 @@
       <div id="toast" class="toast align-items-center border-0 text-bg-dark" role="alert" aria-live="assertive" aria-atomic="true">
         <div class="d-flex">
           <div class="toast-body" id="toastText">Ready.</div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+          <button type="button" class="btn-close btn-close-white me-2 m-auto" id="toastCloseBtn" data-bs-dismiss="toast"></button>
         </div>
       </div>
     </div>
@@ -475,6 +475,8 @@
         "startServiceBtn",
         "openSettingsBtn",
         "openSettingsFromBannerBtn",
+        "settingsModalCloseBtn",
+        "toastCloseBtn",
       ]);
 
       function renderProviderFallback(message, helpText = "") {
@@ -496,6 +498,9 @@
         workspaceLocked = locked;
         const controls = document.querySelectorAll("button, input, select, textarea");
         controls.forEach((el) => {
+          if (el.classList.contains("btn-close")) {
+            return;
+          }
           if (lockBypassControlIds.has(el.id)) {
             return;
           }

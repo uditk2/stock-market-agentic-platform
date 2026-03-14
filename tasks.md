@@ -411,3 +411,21 @@
 - Implement versioned strategy artifacts.
 - Implement recommendation contract fields and linkage table.
 - Implement baseline publish guardrails + suppression audit fields.
+
+## Iteration 53 (W15I FR13-FR15 Draft)
+1. Add lifecycle evaluator for open recommendations.
+2. Implement close-trigger defaults and apply closures.
+3. Persist closure metadata labels on recommendation records.
+4. Add scheduler lifecycle job and diagnostics visibility.
+5. Add tests for trigger/closure behavior.
+
+## Iteration 54 (W15I FR13-FR15 Refined)
+1. Keep close-trigger configuration explicit and overridable.
+2. Keep closure writes idempotent and auditable.
+3. Preserve compatibility for recommendation listing/detail APIs.
+4. Keep expiry/cutoff rule baseline conservative until calendar integration.
+
+15. W15I FR13-FR15 Lifecycle and Closure Labels
+- Add recommendation lifecycle monitor job.
+- Apply close triggers (profit/loss/cutoff defaults).
+- Persist closure outcomes as labels for downstream learning/backtesting.

@@ -565,3 +565,25 @@ Acceptance target:
 - Recommendation rows include FR10-required fields.
 - Linkage table populated for generated recommendations.
 - Guardrail suppression behavior is explicit and test-covered.
+
+## 20. W15I FR13-FR15 Lifecycle, Close Triggers, and Label Persistence (March 2026)
+Objective:
+- Implement lifecycle management foundations for open recommendations:
+  - monitor open recommendations,
+  - apply close triggers,
+  - persist closure outcomes as labels.
+
+Design:
+- Add lifecycle job that evaluates published/open recommendations against latest market data.
+- Add configurable close rules with defaults:
+  - profit per lot >= 20000,
+  - loss per lot <= -30000,
+  - expiry/cutoff close rule baseline for v1.
+- Persist closure details:
+  - close_reason, close_price, realized_pnl_per_lot, closed_at.
+- Keep lifecycle decisions auditable in DB and diagnostics.
+
+Acceptance target:
+- Lifecycle scheduler job runs and updates recommendation status from `published` to `closed` when trigger conditions match.
+- Closure fields persist and are queryable.
+- Tests cover trigger evaluation and closure persistence behavior.

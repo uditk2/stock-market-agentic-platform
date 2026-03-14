@@ -41,6 +41,7 @@ def test_recommendations_and_provider_routes_shape() -> None:
     assert "scheduler_observability" in diag_payload
     assert "signals" in diag_payload
     assert "recommendations" in diag_payload
+    assert "lifecycle_last_run" in diag_payload["recommendations"]
     assert "failure_count" in diag_payload["scheduler_observability"]
 
     observability = client.get("/connectors/observability")

@@ -208,6 +208,13 @@
       "depends_on": [
         "W15G"
       ]
+    },
+    {
+      "id": "W15I",
+      "name": "FR13-FR15 Lifecycle and Closure Labels",
+      "depends_on": [
+        "W15H"
+      ]
     }
   ]
 }

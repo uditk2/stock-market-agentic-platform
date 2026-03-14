@@ -146,6 +146,7 @@ def build_router(runtime: AppRuntime) -> APIRouter:
         announcements_last = _latest_for_job(history_rows, "ingest_announcements")
         signals_last = _latest_for_job(history_rows, "compute_signals")
         recommendations_last = _latest_for_job(history_rows, "generate_recommendations")
+        lifecycle_last = _latest_for_job(history_rows, "evaluate_recommendation_lifecycle")
         verification: dict[str, Any] = {"ok": None, "code": "not_supported", "message": "verification not supported"}
         if hasattr(runtime.market_client, "verify_credentials"):
             try:
@@ -174,6 +175,7 @@ def build_router(runtime: AppRuntime) -> APIRouter:
             },
             "recommendations": {
                 "last_run": _run_to_summary(recommendations_last),
+                "lifecycle_last_run": _run_to_summary(lifecycle_last),
             },
         }
 

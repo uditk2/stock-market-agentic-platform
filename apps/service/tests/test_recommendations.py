@@ -59,3 +59,43 @@ def test_recommendations_search_filters_symbol(tmp_path) -> None:
     items = service.list(query="tcs")
     assert len(items) >= 1
     assert items[0].symbol == "TCS-FUT"
+
+
+def test_recommendation_lifecycle_closes_and_persists_labels(tmp_path) -> None:
+    store = SQLiteMarketDataStore(db_path=tmp_path / "runtime.sqlite3")
+    _seed_store(store)
+    service = RecommendationService(store=store)
+    service.save_strategy_text("Lifecycle test strategy")
+    service.generate_from_signals()
+    items = service.list()
+    assert items
+    rec = items[0]
+
+    if rec.direction == "long":
+        close_price = rec.entry_price + 25000.0
+    else:
+        close_price = rec.entry_price - 25000.0
+
+    store.save_market_bars(
+        [
+            MarketBar(
+                symbol=rec.symbol,
+                timeframe="1m",
+                open=close_price,
+                high=close_price,
+                low=close_price,
+                close=close_price,
+                volume=2000,
+                as_of="2026-03-14T09:59:00Z",
+            )
+        ]
+    )
+    closed = service.evaluate_lifecycle()
+    assert closed >= 1
+    detail = service.get(rec.recommendation_id)
+    assert detail is not None
+    assert detail.status == "closed"
+    assert detail.close_reason in {"profit_trigger", "loss_trigger", "cutoff_trigger"}
+    assert detail.close_price is not None
+    assert detail.realized_pnl_per_lot is not None
+    assert detail.closed_at is not None

@@ -591,3 +591,29 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Add generation + guardrails + tests.
 - Risks and open questions:
   - Guardrail thresholds are baseline and may require calibration.
+
+### Current Slice: W15I FR13-FR15 Recommendation Lifecycle and Labels
+- Problem statement:
+  - FR13-FR15 need lifecycle monitoring, close-trigger enforcement, and closure-label persistence, currently missing.
+- Constraints and assumptions:
+  - Use per-lot P&L approximation with current market bar close.
+  - Keep lifecycle deterministic and auditable.
+- Design alternatives considered:
+  1. Manual closure only: rejected.
+  2. Full production risk engine in one pass: rejected.
+  3. Baseline lifecycle evaluator + close-trigger persistence: chosen.
+- Chosen architecture:
+  - Scheduler lifecycle job evaluates open recommendations.
+  - Trigger engine applies profit/loss/cutoff closures.
+  - Recommendations table stores closure metadata as labels.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/core/recommendations.py`
+  - `apps/service/src/smap_service/db/market_data.py`
+  - `apps/service/src/smap_service/scheduler/manager.py`
+  - `apps/service/src/smap_service/api/routes.py`
+- Delivery plan:
+  - Add closure fields and DB update path.
+  - Add lifecycle evaluator and scheduler wiring.
+  - Add tests for trigger behavior and label persistence.
+- Risks and open questions:
+  - Accurate expiry/cutoff semantics need full contract/calendar integration in later slices.

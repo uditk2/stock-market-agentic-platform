@@ -298,8 +298,9 @@ class SQLiteMarketDataStore:
                     INSERT INTO recommendations (
                         recommendation_id, symbol, direction, entry_price, stop_loss,
                         target_1, target_2, confidence, rationale, strategy_artifact_id,
-                        status, suppress_reason, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        status, suppress_reason, created_at, close_reason, close_price,
+                        realized_pnl_per_lot, closed_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(recommendation_id) DO UPDATE SET
                         direction = excluded.direction,
                         entry_price = excluded.entry_price,
@@ -310,7 +311,11 @@ class SQLiteMarketDataStore:
                         rationale = excluded.rationale,
                         strategy_artifact_id = excluded.strategy_artifact_id,
                         status = excluded.status,
-                        suppress_reason = excluded.suppress_reason
+                        suppress_reason = excluded.suppress_reason,
+                        close_reason = excluded.close_reason,
+                        close_price = excluded.close_price,
+                        realized_pnl_per_lot = excluded.realized_pnl_per_lot,
+                        closed_at = excluded.closed_at
                     """,
                     (
                         row["recommendation_id"],
@@ -326,6 +331,10 @@ class SQLiteMarketDataStore:
                         row["status"],
                         row.get("suppress_reason"),
                         row["created_at"],
+                        row.get("close_reason"),
+                        row.get("close_price"),
+                        row.get("realized_pnl_per_lot"),
+                        row.get("closed_at"),
                     ),
                 )
                 links = row.get("signal_ids", [])
@@ -345,7 +354,8 @@ class SQLiteMarketDataStore:
             sql = """
                 SELECT recommendation_id, symbol, direction, entry_price, stop_loss,
                        target_1, target_2, confidence, rationale, strategy_artifact_id,
-                       status, suppress_reason, created_at
+                       status, suppress_reason, created_at, close_reason, close_price,
+                       realized_pnl_per_lot, closed_at
                 FROM recommendations
             """
             clauses: list[str] = []
@@ -374,6 +384,10 @@ class SQLiteMarketDataStore:
                 "status": row[10],
                 "suppress_reason": row[11],
                 "created_at": row[12],
+                "close_reason": row[13],
+                "close_price": row[14],
+                "realized_pnl_per_lot": row[15],
+                "closed_at": row[16],
             }
             for row in rows
         ]
@@ -384,7 +398,8 @@ class SQLiteMarketDataStore:
                 """
                 SELECT recommendation_id, symbol, direction, entry_price, stop_loss,
                        target_1, target_2, confidence, rationale, strategy_artifact_id,
-                       status, suppress_reason, created_at
+                       status, suppress_reason, created_at, close_reason, close_price,
+                       realized_pnl_per_lot, closed_at
                 FROM recommendations
                 WHERE recommendation_id = ?
                 """,
@@ -410,8 +425,48 @@ class SQLiteMarketDataStore:
             "status": row[10],
             "suppress_reason": row[11],
             "created_at": row[12],
+            "close_reason": row[13],
+            "close_price": row[14],
+            "realized_pnl_per_lot": row[15],
+            "closed_at": row[16],
             "signal_ids": [link[0] for link in link_rows],
         }
+
+    def latest_close_for_symbol(self, symbol: str) -> float | None:
+        with self._lock, self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT close
+                FROM market_bars
+                WHERE symbol = ?
+                ORDER BY as_of DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            ).fetchone()
+        return float(row[0]) if row else None
+
+    def close_recommendation(
+        self,
+        recommendation_id: str,
+        close_reason: str,
+        close_price: float,
+        realized_pnl_per_lot: float,
+    ) -> None:
+        with self._lock, self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE recommendations
+                SET status = 'closed',
+                    close_reason = ?,
+                    close_price = ?,
+                    realized_pnl_per_lot = ?,
+                    closed_at = ?
+                WHERE recommendation_id = ?
+                """,
+                (close_reason, close_price, realized_pnl_per_lot, now_utc().isoformat(), recommendation_id),
+            )
+            conn.commit()
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)
@@ -494,10 +549,18 @@ class SQLiteMarketDataStore:
                     strategy_artifact_id TEXT NOT NULL,
                     status TEXT NOT NULL,
                     suppress_reason TEXT,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    close_reason TEXT,
+                    close_price REAL,
+                    realized_pnl_per_lot REAL,
+                    closed_at TEXT
                 )
                 """
             )
+            self._ensure_column(conn, "recommendations", "close_reason", "TEXT")
+            self._ensure_column(conn, "recommendations", "close_price", "REAL")
+            self._ensure_column(conn, "recommendations", "realized_pnl_per_lot", "REAL")
+            self._ensure_column(conn, "recommendations", "closed_at", "TEXT")
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS recommendation_signal_links (
@@ -532,6 +595,12 @@ class SQLiteMarketDataStore:
                 """
             )
             conn.commit()
+
+    def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, ddl_suffix: str) -> None:
+        existing = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        names = {row[1] for row in existing}
+        if column not in names:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_suffix}")
 
 
 def now_utc() -> datetime:

@@ -23,6 +23,10 @@ class Recommendation:
     signal_ids: list[str]
     status: str
     suppress_reason: str | None
+    close_reason: str | None
+    close_price: float | None
+    realized_pnl_per_lot: float | None
+    closed_at: str | None
 
 
 class RecommendationService:
@@ -34,6 +38,38 @@ class RecommendationService:
 
     def list_strategy_artifacts(self, limit: int = 20) -> list[dict[str, object]]:
         return self._store.list_strategy_artifacts(limit=limit)
+
+    def evaluate_lifecycle(self) -> int:
+        open_rows = self._store.list_recommendations(query=None, include_suppressed=False)
+        closed = 0
+        for row in open_rows:
+            if row.get("status") != "published":
+                continue
+            symbol = str(row["symbol"])
+            latest_close = self._store.latest_close_for_symbol(symbol)
+            if latest_close is None:
+                continue
+            direction = str(row["direction"])
+            entry = float(row["entry_price"])
+            lot_size = 1.0
+            pnl = (latest_close - entry) * lot_size if direction == "long" else (entry - latest_close) * lot_size
+            reason: str | None = None
+            if pnl >= 20000:
+                reason = "profit_trigger"
+            elif pnl <= -30000:
+                reason = "loss_trigger"
+            elif _is_cutoff_elapsed(str(row.get("created_at", ""))):
+                reason = "cutoff_trigger"
+            if reason is None:
+                continue
+            self._store.close_recommendation(
+                recommendation_id=str(row["recommendation_id"]),
+                close_reason=reason,
+                close_price=latest_close,
+                realized_pnl_per_lot=pnl,
+            )
+            closed += 1
+        return closed
 
     def generate_from_signals(self) -> int:
         latest_strategy = self._store.latest_strategy_artifact()
@@ -82,6 +118,10 @@ class RecommendationService:
                     "status": "published" if guardrail["ok"] else "suppressed",
                     "suppress_reason": None if guardrail["ok"] else guardrail["reason"],
                     "created_at": now_utc().isoformat(),
+                    "close_reason": None,
+                    "close_price": None,
+                    "realized_pnl_per_lot": None,
+                    "closed_at": None,
                     "signal_ids": [signal_id] if signal_id else [],
                 }
             )
@@ -114,6 +154,10 @@ class RecommendationService:
             "signal_ids": item.signal_ids,
             "status": item.status,
             "suppress_reason": item.suppress_reason,
+            "close_reason": item.close_reason,
+            "close_price": item.close_price,
+            "realized_pnl_per_lot": item.realized_pnl_per_lot,
+            "closed_at": item.closed_at,
         }
 
     def _to_dataclass(self, row: dict[str, object]) -> Recommendation:
@@ -140,6 +184,12 @@ class RecommendationService:
             signal_ids=[str(item) for item in row.get("signal_ids", [])],
             status=str(row.get("status", "published")),
             suppress_reason=str(row["suppress_reason"]) if row.get("suppress_reason") else None,
+            close_reason=str(row["close_reason"]) if row.get("close_reason") else None,
+            close_price=float(row["close_price"]) if row.get("close_price") is not None else None,
+            realized_pnl_per_lot=float(row["realized_pnl_per_lot"])
+            if row.get("realized_pnl_per_lot") is not None
+            else None,
+            closed_at=str(row["closed_at"]) if row.get("closed_at") else None,
         )
 
     @staticmethod
@@ -166,3 +216,13 @@ def _stable_recommendation_id(symbol: str, signal_id: str, strategy_id: str) -> 
 
 def now_utc() -> datetime:
     return datetime.now(UTC)
+
+
+def _is_cutoff_elapsed(created_at: str) -> bool:
+    if not created_at:
+        return False
+    try:
+        ts = datetime.fromisoformat(created_at)
+    except ValueError:
+        return False
+    return (now_utc() - ts).total_seconds() >= 24 * 3600

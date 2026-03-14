@@ -83,6 +83,14 @@ class SchedulerManager:
             max_instances=1,
             replace_existing=True,
         )
+        self._scheduler.add_job(
+            self._run_lifecycle_job,
+            "interval",
+            seconds=self._config.scheduler.lifecycle_interval_seconds,
+            id="recommendation_lifecycle",
+            max_instances=1,
+            replace_existing=True,
+        )
         self._scheduler.start()
         logger.info("scheduler started")
 
@@ -161,9 +169,15 @@ class SchedulerManager:
             lambda: JobRunResultAdapter(self._recommendations.generate_from_signals()),
         )
 
+    def _run_lifecycle_job(self) -> None:
+        self._record(
+            "evaluate_recommendation_lifecycle",
+            lambda: JobRunResultAdapter(self._recommendations.evaluate_lifecycle(), connector="recommendation_lifecycle"),
+        )
+
 
 class JobRunResultAdapter:
-    def __init__(self, count: int):
+    def __init__(self, count: int, connector: str = "recommendation_engine"):
         self.records_processed = count
-        self.connector = "recommendation_engine"
+        self.connector = connector
         self.attribution = {}

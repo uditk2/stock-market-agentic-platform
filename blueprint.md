@@ -447,3 +447,33 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Validate provider endpoint from packaged runtime.
 - Risks/open questions:
   - Future dynamically imported modules may still require explicit hidden imports if introduced.
+
+### Current Slice: W14 Runtime Usability and Kotak Verification
+- Problem statement:
+  - Users report Refresh/Search controls appear inactive, records remain zero without clear causes, Kotak credential validity is opaque, and Backtesting/ML options are not visible.
+- Constraints:
+  - Keep current desktop/service architecture and avoid order-trading side effects.
+  - Use official Kotak Neo primary sources for API alignment.
+  - Keep fixes incremental and issue-scoped.
+- Design alternatives considered:
+  1. Only add UI messaging without connector/API changes: rejected (does not address ingestion/auth correctness).
+  2. Full backtesting/ML engine implementation immediately: rejected (too broad for support hotfix window).
+  3. Deliver visibility/verification + API alignment now, with dedicated follow-up issues for full engines: chosen.
+- Chosen architecture:
+  - Renderer: explicit action feedback for search/refresh, richer diagnostics rendering, and visible workspace mode entry points.
+  - Service: Kotak connector aligned to official quote/scrip-master patterns and diagnostics credential verification payload.
+  - Tracking: separate issue IDs for each user-reported problem and sequential resolution.
+- Interfaces/modules:
+  - `apps/desktop/renderer/index.html`
+  - `apps/service/src/smap_service/plugins/market/kotak_client.py`
+  - `apps/service/src/smap_service/api/routes.py`
+  - GitHub issues `#29` to `#33`
+- Delivery plan:
+  - Issue #29: Refresh/Search interaction feedback.
+  - Issue #30: Kotak API correctness + credential verification.
+  - Issue #31: records=0 cause visibility.
+  - Issue #32: Backtesting visibility entry point.
+  - Issue #33: ML recommendations visibility entry point.
+- Risks/open questions:
+  - User-provided Kotak credential field currently named `access_token`; if they are using a different key type, additional schema normalization may be required.
+  - Quote ingestion still depends on symbol-token resolution from scrip master data availability.

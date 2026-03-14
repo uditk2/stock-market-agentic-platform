@@ -108,5 +108,5 @@ jobs:
           fi
           curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-            --data-urlencode "text=macOS DMG download link: ${DMG_URL} (commit ${GITHUB_SHA})" >/tmp/tg_send_link.json || true
+            --data-urlencode "text=macOS DMG (private GitHub release, requires repository access): ${DMG_URL} (commit ${GITHUB_SHA})" >/tmp/tg_send_link.json || true
           cat /tmp/tg_send_link.json || true

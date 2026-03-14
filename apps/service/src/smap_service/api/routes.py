@@ -120,12 +120,19 @@ def build_router(runtime: AppRuntime) -> APIRouter:
         market_last = _latest_for_job(history_rows, "ingest_market_bars")
         news_last = _latest_for_job(history_rows, "ingest_news")
         announcements_last = _latest_for_job(history_rows, "ingest_announcements")
+        verification: dict[str, Any] = {"ok": None, "code": "not_supported", "message": "verification not supported"}
+        if hasattr(runtime.market_client, "verify_credentials"):
+            try:
+                verification = runtime.market_client.verify_credentials()
+            except Exception as exc:  # pragma: no cover - runtime wrapper
+                verification = {"ok": False, "code": "verify_exception", "message": str(exc)}
         return {
             "market": {
                 "active_connector": runtime.market_client_name,
                 "selected_provider": selected,
                 "has_credentials": selection.has_credentials,
                 "missing_required_fields": missing,
+                "credential_verification": verification,
                 "last_run": _run_to_summary(market_last),
             },
             "news": {

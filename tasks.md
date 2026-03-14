@@ -317,3 +317,24 @@
 3. Issue #22: deliver terminal hidden-by-default with open/close control.
 4. Issue #23: deliver UI polish pass and alignment tweaks.
 5. Update docs/context and publish user-facing summary after all issue closures.
+
+## Iteration 43 (W14 Support Hotfix Draft)
+1. Create separate issue tracks for each user-reported problem (buttons, Kotak verification, records=0 visibility, backtesting visibility, ML visibility).
+2. Research official Kotak Neo API sources and align connector endpoints/headers.
+3. Add credential verification status into diagnostics payload.
+4. Add explicit UI feedback for Refresh/Search actions.
+5. Add visible Backtesting and ML navigation entry points.
+
+## Iteration 44 (W14 Support Hotfix Refined)
+1. Keep Refresh/Search behavior deterministic with loading and result/error feedback.
+2. Keep diagnostics explicit when run status is success but records remain zero.
+3. Keep Kotak verification read-only and non-ordering.
+4. Keep Backtesting/ML additions as visible panels without pretending full engine readiness.
+5. Update issues and context with implementation status and validation gaps.
+
+10. W14 Runtime Usability + Verification Follow-up
+- Issue #29: Refresh/Search buttons explicit action feedback.
+- Issue #30: Kotak Neo API correctness and credential verification.
+- Issue #31: records=0 failure-cause visibility in diagnostics UI.
+- Issue #32: Backtesting option visibility.
+- Issue #33: ML recommendations option visibility.

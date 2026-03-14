@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import csv
 import json
 import logging
 import urllib.parse
 import urllib.request
+from io import StringIO
+from typing import Any
 
 from smap_service.core.interfaces import MarketBar, MarketFeedClient
 from smap_service.core.retry import retry_call
@@ -16,12 +19,13 @@ class KotakMarketFeedClient(MarketFeedClient):
     def __init__(
         self,
         credentials: SQLiteProviderCredentialStore,
-        base_url: str = "https://api.kotak.com",
+        base_url: str = "https://mnapi.kotaksecurities.com",
         timeout_seconds: float = 5.0,
     ):
         self._credentials = credentials
         self._base_url = base_url.rstrip("/")
         self._timeout_seconds = timeout_seconds
+        self._token_cache: dict[str, str] | None = None
 
     @property
     def name(self) -> str:
@@ -37,28 +41,57 @@ class KotakMarketFeedClient(MarketFeedClient):
         if not token:
             logger.warning("kotak connector skipped: missing access_token")
             return []
+        if not self.verify_credentials().get("ok"):
+            logger.warning("kotak connector skipped: credential verification failed")
+            return []
+        symbol_tokens = self._resolve_symbol_tokens(symbols=symbols, token=token)
         bars: list[MarketBar] = []
         for symbol in symbols:
-            item = self._fetch_symbol(symbol=symbol, token=token)
+            instrument_token = symbol_tokens.get(symbol)
+            if not instrument_token:
+                logger.warning("kotak fetch skipped symbol=%s reason=token_not_found", symbol)
+                continue
+            item = self._fetch_symbol(symbol=symbol, instrument_token=instrument_token, token=token)
             if item is not None:
                 bars.append(item)
         return bars
 
-    def _fetch_symbol(self, symbol: str, token: str) -> MarketBar | None:
+    def verify_credentials(self) -> dict[str, Any]:
+        selection = self._credentials.get_selection()
+        if selection.provider != "kotak_neo" or not selection.has_credentials:
+            return {
+                "ok": False,
+                "code": "provider_not_selected",
+                "message": "Kotak Neo is not selected or credentials are not saved.",
+            }
+        creds = self._credentials.get_credentials("kotak_neo") or {}
+        token = creds.get("access_token")
+        if not token:
+            return {"ok": False, "code": "missing_access_token", "message": "Missing access_token in saved credentials."}
+        try:
+            paths = self._fetch_scrip_master_paths(token=token)
+            if not paths:
+                return {"ok": False, "code": "empty_scrip_master", "message": "Scrip master path list is empty."}
+            return {"ok": True, "code": "verified", "message": "Kotak credentials verified via scrip-master endpoint."}
+        except Exception as exc:  # pragma: no cover - runtime/network wrapper
+            return {"ok": False, "code": "verify_failed", "message": str(exc)}
+
+    def _fetch_symbol(self, symbol: str, instrument_token: str, token: str) -> MarketBar | None:
         def _request() -> MarketBar | None:
-            query = urllib.parse.urlencode({"symbol": symbol, "interval": "1m"})
+            neo_symbol = urllib.parse.quote(f"nse_fo|{instrument_token}", safe="")
             request = urllib.request.Request(
-                f"{self._base_url}/market/bars?{query}",
+                f"{self._base_url}/script-details/1.0/quotes/neosymbol/{neo_symbol}/ohlc",
                 headers={
-                    "Authorization": f"Bearer {token}",
-                    "Accept": "application/json",
+                    "Authorization": token,
+                    "Content-Type": "application/x-www-form-urlencoded",
                     "User-Agent": "smap-service/0.1",
                 },
                 method="GET",
             )
             with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
                 payload = json.loads(response.read().decode("utf-8"))
-            return self._normalize(symbol=symbol, payload=payload)
+            normalized_payload = self._extract_quote_payload(payload)
+            return self._normalize(symbol=symbol, payload=normalized_payload)
 
         try:
             return retry_call(_request, attempts=3, base_delay_seconds=0.25)
@@ -66,16 +99,97 @@ class KotakMarketFeedClient(MarketFeedClient):
             logger.warning("kotak fetch failed symbol=%s error=%s", symbol, exc)
             return None
 
+    def _resolve_symbol_tokens(self, symbols: list[str], token: str) -> dict[str, str]:
+        if self._token_cache is not None:
+            return {symbol: self._token_cache.get(symbol, "") for symbol in symbols}
+        paths = self._fetch_scrip_master_paths(token=token)
+        futures_csv_url = next((path for path in paths if "nse_fo" in path.lower()), "")
+        if not futures_csv_url:
+            logger.warning("kotak token resolution failed: nse_fo scrip master path missing")
+            self._token_cache = {}
+            return {}
+        rows = self._fetch_csv_rows(futures_csv_url)
+        resolved: dict[str, str] = {}
+        for symbol in symbols:
+            token_value = self._find_token_for_symbol(symbol=symbol, rows=rows)
+            if token_value:
+                resolved[symbol] = token_value
+        self._token_cache = resolved
+        return resolved
+
+    def _fetch_scrip_master_paths(self, token: str) -> list[str]:
+        request = urllib.request.Request(
+            f"{self._base_url}/script-details/1.0/masterscrip/file-paths",
+            headers={
+                "Authorization": token,
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "smap-service/0.1",
+            },
+            method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        data = payload.get("data", {})
+        paths = data.get("filesPaths", [])
+        if isinstance(paths, list):
+            return [str(item) for item in paths if isinstance(item, str)]
+        return []
+
+    def _fetch_csv_rows(self, url: str) -> list[dict[str, str]]:
+        with urllib.request.urlopen(url, timeout=self._timeout_seconds) as response:
+            csv_text = response.read().decode("utf-8", errors="replace")
+        reader = csv.DictReader(StringIO(csv_text))
+        return [{str(k): str(v) for k, v in row.items()} for row in reader]
+
+    @staticmethod
+    def _find_token_for_symbol(symbol: str, rows: list[dict[str, str]]) -> str | None:
+        base = symbol.replace("-FUT", "").upper()
+        token_keys = ("pSymbol", "instrument_token", "token", "pToken")
+        label_keys = ("pTrdSymbol", "trading_symbol", "symbol", "pSymbolName")
+        for row in rows:
+            label = ""
+            for key in label_keys:
+                value = row.get(key)
+                if value:
+                    label = str(value).upper()
+                    break
+            if not label or base not in label:
+                continue
+            if "FUT" not in label:
+                continue
+            for key in token_keys:
+                value = row.get(key)
+                if value and str(value).strip():
+                    return str(value).strip()
+        return None
+
+    @staticmethod
+    def _extract_quote_payload(payload: dict[str, Any]) -> dict[str, Any]:
+        data = payload.get("data")
+        if isinstance(data, list) and data:
+            first = data[0]
+            if isinstance(first, dict):
+                return first
+        if isinstance(data, dict):
+            return data
+        return payload
+
     @staticmethod
     def _normalize(symbol: str, payload: dict[str, object]) -> MarketBar:
-        # Baseline normalization contract; payload shape varies by provider account tier.
+        # Kotak payload keys can vary across quote types/account tiers.
+        open_value = payload.get("open", payload.get("op", 0.0))
+        high_value = payload.get("high", payload.get("h", 0.0))
+        low_value = payload.get("low", payload.get("lo", 0.0))
+        close_value = payload.get("close", payload.get("c", payload.get("ltp", 0.0)))
+        volume_value = payload.get("volume", payload.get("v", 0))
+        as_of_value = payload.get("as_of", payload.get("ltt", payload.get("timestamp", "")))
         return MarketBar(
             symbol=symbol,
             timeframe="1m",
-            open=float(payload.get("open", 0.0)),
-            high=float(payload.get("high", 0.0)),
-            low=float(payload.get("low", 0.0)),
-            close=float(payload.get("close", 0.0)),
-            volume=int(payload.get("volume", 0)),
-            as_of=str(payload.get("as_of", "")),
+            open=float(open_value or 0.0),
+            high=float(high_value or 0.0),
+            low=float(low_value or 0.0),
+            close=float(close_value or 0.0),
+            volume=int(volume_value or 0),
+            as_of=str(as_of_value or ""),
         )

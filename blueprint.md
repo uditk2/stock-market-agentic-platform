@@ -477,3 +477,37 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks/open questions:
   - User-provided Kotak credential field currently named `access_token`; if they are using a different key type, additional schema normalization may be required.
   - Quote ingestion still depends on symbol-token resolution from scrip master data availability.
+
+### Current Slice: W15 Functional-Correctness Recovery and Revalidation
+- Problem statement:
+  - User-reported functional dissatisfaction indicates substantial behavior gaps relative to design FR1-FR15 despite prior issue closures.
+  - Runtime evidence shows at least one hard defect (`/connectors/diagnostics` crash), and Kotak token validation is not enforced pre-save.
+- Constraints and assumptions:
+  - Functional correctness takes precedence over UI polish.
+  - Broker-side verification must stay read-only (no trading/order APIs).
+  - Existing architecture (Electron renderer + FastAPI service + SQLite) remains in place.
+- Design alternatives considered:
+  1. Patch only visible UI controls: rejected (does not guarantee FR correctness or backend stability).
+  2. Full greenfield rewrite of service/recommendation stack: rejected for this pass due risk and delivery time.
+  3. Incremental correctness recovery with traceability-first execution: chosen.
+- Chosen architecture:
+  - Add FR traceability matrix and issue mapping as the source of truth for this pass.
+  - Stabilize core service APIs first (diagnostics and credential flow).
+  - Enforce provider verification before credential persistence for Kotak.
+  - Re-test UI actions against stable APIs and expose explicit failure causes.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/api/routes.py`
+  - `apps/service/src/smap_service/app_runtime.py`
+  - `apps/service/src/smap_service/plugins/market/kotak_client.py`
+  - `apps/service/tests/test_health_route.py`
+  - `apps/service/tests/test_connector_observability_smoke.py`
+  - `apps/desktop/renderer/index.html`
+  - `issues/issue-039-fr-audit-and-functional-gap-recovery.md` (new)
+- Delivery plan:
+  - Phase 1: FR1-FR15 audit + closed-issue revalidation + defect inventory.
+  - Phase 2: Core API correctness fixes (diagnostics stability + pre-save Kotak validation).
+  - Phase 3: Workflow verification (refresh/search, connector diagnostics, recommendation visibility).
+  - Phase 4: Re-run tests, update issues, and publish final gap report.
+- Risks and open questions:
+  - FR1-FR15 includes substantial algorithmic features not yet implemented; multiple follow-up slices are expected.
+  - Live Kotak validation depends on external API availability/rate limiting.

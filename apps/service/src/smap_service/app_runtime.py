@@ -28,6 +28,7 @@ class AppRuntime:
     scheduler: SchedulerManager
     credentials: SQLiteProviderCredentialStore
     recommendations: RecommendationService
+    market_client: KotakMarketFeedClient
     market_client_name: str
 
 
@@ -62,5 +63,6 @@ def build_runtime() -> AppRuntime:
         scheduler=scheduler,
         credentials=credentials,
         recommendations=recommendations,
+        market_client=market_client,
         market_client_name=market_client.name,
     )

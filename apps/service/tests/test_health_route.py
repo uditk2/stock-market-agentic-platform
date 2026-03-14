@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from smap_service.main import app
+from smap_service.main import app, runtime
 
 
 def test_health_route_shape() -> None:
@@ -57,3 +57,39 @@ def test_provider_selection_validation_rejects_missing_required_fields() -> None
     assert response.status_code == 400
     payload = response.json()
     assert payload["detail"]["error"] == "missing_required_fields"
+
+
+def test_provider_selection_rejects_kotak_credentials_when_live_verification_fails(monkeypatch) -> None:
+    client = TestClient(app)
+
+    def _fail(_: dict[str, str]) -> dict[str, object]:
+        return {"ok": False, "code": "verify_failed", "message": "token rejected"}
+
+    monkeypatch.setattr(runtime.market_client, "verify_credentials_payload", _fail)
+
+    response = client.put(
+        "/providers/brokers/selection",
+        json={"provider": "kotak_neo", "credentials": {"access_token": "bad-token"}},
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["detail"]["error"] == "credential_verification_failed"
+    assert payload["detail"]["verification"]["code"] == "verify_failed"
+
+
+def test_provider_selection_saves_kotak_credentials_when_live_verification_passes(monkeypatch) -> None:
+    client = TestClient(app)
+
+    def _ok(_: dict[str, str]) -> dict[str, object]:
+        return {"ok": True, "code": "verified", "message": "ok"}
+
+    monkeypatch.setattr(runtime.market_client, "verify_credentials_payload", _ok)
+
+    response = client.put(
+        "/providers/brokers/selection",
+        json={"provider": "kotak_neo", "credentials": {"access_token": "good-token"}},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["selected_provider"] == "kotak_neo"

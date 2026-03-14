@@ -152,6 +152,41 @@
       "depends_on": [
         "W14D"
       ]
+    },
+    {
+      "id": "W15A",
+      "name": "FR1-FR15 Traceability Audit and Closed-Issue Verification",
+      "depends_on": [
+        "W14E"
+      ]
+    },
+    {
+      "id": "W15B",
+      "name": "Diagnostics API Stability Hardening",
+      "depends_on": [
+        "W15A"
+      ]
+    },
+    {
+      "id": "W15C",
+      "name": "Kotak Pre-Save Token Validation Gate",
+      "depends_on": [
+        "W15B"
+      ]
+    },
+    {
+      "id": "W15D",
+      "name": "End-to-End Regression Verification",
+      "depends_on": [
+        "W15C"
+      ]
+    },
+    {
+      "id": "W15E",
+      "name": "Reimagined User/Data Flow Documentation and Gap Report",
+      "depends_on": [
+        "W15D"
+      ]
     }
   ]
 }

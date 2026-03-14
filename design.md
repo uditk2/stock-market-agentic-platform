@@ -459,3 +459,45 @@ Design:
 Validation outcome:
 - Rebuilt `apps/service/dist/smap-service` starts successfully.
 - `/health` and `/providers/brokers` return expected payloads.
+
+## 16. W15 Functional-Correctness Recovery Pass (March 2026)
+Objective:
+- Re-validate implementation against canonical FR1-FR15 with strict functional correctness priority.
+- Re-test previously closed user-facing issues using runtime evidence, not UI assumptions.
+- Add strict Kotak token validation before credential persistence.
+
+Problem summary:
+- Current implementation contains demonstrably incomplete FR coverage and at least one active runtime defect (`/connectors/diagnostics` route crash in automated tests).
+- Credential validation for Kotak is currently post-save/diagnostic-oriented rather than enforced before saving.
+
+Reimagined user flow (functional-first):
+1. User opens app and reaches broker configuration.
+2. User selects provider and enters credentials.
+3. On save:
+   - Required-field checks run.
+   - Provider-specific live verification runs (Kotak token verification against market endpoint).
+   - Credentials are persisted only when verification passes.
+4. Workspace actions (`Refresh Data`, `Search`) surface:
+   - current connector state,
+   - explicit success/failure reason,
+   - actionable remediation when records are zero.
+5. Recommendation views show only data backed by validated ingestion and recorded diagnostics.
+
+Reimagined data flow (minimum correctness baseline):
+1. Credentials API receives provider + credential payload.
+2. Route validates schema and performs provider live verification.
+3. Verified credentials are encrypted and saved.
+4. Scheduler jobs ingest market/news/announcements with attribution and error capture.
+5. Diagnostics endpoint returns stable payload with verification + latest job outcomes.
+6. UI refresh/search workflows consume diagnostics + recommendations and render deterministic state messages.
+
+Design constraints:
+- Keep existing repo/runtime architecture; avoid introducing order placement or broker write-side actions.
+- Use official Kotak Neo patterns for verification behavior.
+- Prioritize correctness over cosmetic refactors.
+
+Acceptance target:
+- `/connectors/diagnostics` must be stable (no runtime exception) and include credential verification details.
+- Broker credential save must reject invalid Kotak token before persistence.
+- Automated tests pass after changes; new tests cover the pre-save token validation path.
+- FR coverage matrix is updated with explicit met/partial/missing status and linked issues.

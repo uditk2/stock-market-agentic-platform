@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import socket
+import urllib.error
 import urllib.parse
 import urllib.request
 from io import StringIO
@@ -65,14 +67,27 @@ class KotakMarketFeedClient(MarketFeedClient):
                 "message": "Kotak Neo is not selected or credentials are not saved.",
             }
         creds = self._credentials.get_credentials("kotak_neo") or {}
+        return self.verify_credentials_payload(creds)
+
+    def verify_credentials_payload(self, credentials: dict[str, str] | None) -> dict[str, Any]:
+        creds = credentials or {}
         token = creds.get("access_token")
         if not token:
-            return {"ok": False, "code": "missing_access_token", "message": "Missing access_token in saved credentials."}
+            return {"ok": False, "code": "missing_access_token", "message": "Missing access_token in provided credentials."}
         try:
             paths = self._fetch_scrip_master_paths(token=token)
             if not paths:
                 return {"ok": False, "code": "empty_scrip_master", "message": "Scrip master path list is empty."}
             return {"ok": True, "code": "verified", "message": "Kotak credentials verified via scrip-master endpoint."}
+        except urllib.error.URLError as exc:  # pragma: no cover - runtime/network wrapper
+            reason = getattr(exc, "reason", None)
+            if isinstance(reason, socket.timeout):
+                return {
+                    "ok": False,
+                    "code": "upstream_timeout",
+                    "message": "Timed out while contacting Kotak verification endpoint.",
+                }
+            return {"ok": False, "code": "upstream_unreachable", "message": str(exc)}
         except Exception as exc:  # pragma: no cover - runtime/network wrapper
             return {"ok": False, "code": "verify_failed", "message": str(exc)}
 

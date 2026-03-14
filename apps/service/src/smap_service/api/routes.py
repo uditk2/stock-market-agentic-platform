@@ -83,6 +83,17 @@ def build_router(runtime: AppRuntime) -> APIRouter:
                     "missing_fields": missing,
                 },
             )
+        if request.provider == "kotak_neo":
+            verification = _verify_kotak_credentials_before_save(runtime=runtime, credentials=request.credentials)
+            if not verification.get("ok"):
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "credential_verification_failed",
+                        "provider": request.provider,
+                        "verification": verification,
+                    },
+                )
         runtime.credentials.save_selection(
             provider=request.provider,
             credentials=request.credentials,
@@ -234,3 +245,13 @@ def _build_observability(rows: list[JobRun]) -> dict[str, Any]:
         "failure_count": failures,
         "latest_by_job": latest_by_job,
     }
+
+
+def _verify_kotak_credentials_before_save(runtime: AppRuntime, credentials: dict[str, str]) -> dict[str, Any]:
+    verifier = getattr(runtime.market_client, "verify_credentials_payload", None)
+    if callable(verifier):
+        try:
+            return verifier(credentials)
+        except Exception as exc:  # pragma: no cover - runtime wrapper
+            return {"ok": False, "code": "verify_exception", "message": str(exc)}
+    return {"ok": False, "code": "verify_not_supported", "message": "Kotak verification is not available in runtime."}

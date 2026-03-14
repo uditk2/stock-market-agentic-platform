@@ -338,3 +338,24 @@
 - Issue #31: records=0 failure-cause visibility in diagnostics UI.
 - Issue #32: Backtesting option visibility.
 - Issue #33: ML recommendations option visibility.
+
+## Iteration 45 (W15 Functional-Correctness Recovery Draft)
+1. Build FR1-FR15 traceability matrix with met/partial/missing status backed by runtime/code evidence.
+2. Re-validate previously closed issues against current behavior and reopen/create issues for regressions.
+3. Fix core service defects first (including diagnostics route stability).
+4. Enforce Kotak token verification before credential save and add tests.
+5. Re-run service tests and targeted end-to-end API checks using provided token.
+
+## Iteration 46 (W15 Functional-Correctness Recovery Refined)
+1. Keep fix ordering strict: API correctness before UI behavior.
+2. Treat placeholder-only features as not complete; track them explicitly as functional gaps.
+3. Persist credentials only after provider verification passes for Kotak.
+4. Re-test refresh/search and diagnostics flows against real service responses.
+5. Update issue tracker with evidence and close only verified items.
+
+11. W15 Functional-Correctness Recovery and Revalidation
+- W15A: FR1-FR15 traceability audit and closed-issue verification report.
+- W15B: Diagnostics API crash fix and runtime stability hardening.
+- W15C: Kotak pre-save token validation gate and credential-save contract update.
+- W15D: End-to-end regression run (tests + API workflow checks with provided token).
+- W15E: Reimagined user flow/data flow documentation and revised gap report publication.

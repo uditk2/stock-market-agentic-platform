@@ -1,3 +1,6 @@
+import socket
+import urllib.error
+
 from smap_service.core.retry import retry_call
 from smap_service.ingestion.jobs import ingest_market_bars
 from smap_service.plugins.market.kotak_client import KotakMarketFeedClient
@@ -38,3 +41,20 @@ def test_kotak_client_without_selected_credentials_returns_empty(tmp_path) -> No
 def test_ingest_market_bars_counts_records() -> None:
     result = ingest_market_bars(_DummyMarketClient())
     assert result.records_processed == 4
+
+
+def test_kotak_verify_credentials_reports_upstream_timeout(tmp_path, monkeypatch) -> None:
+    store = SQLiteProviderCredentialStore(
+        db_path=tmp_path / "runtime.sqlite3",
+        key_path=tmp_path / "credentials.key",
+    )
+    store.save_selection(provider="kotak_neo", credentials={"access_token": "token"})
+    client = KotakMarketFeedClient(credentials=store)
+
+    def _timeout(token: str) -> list[str]:
+        raise urllib.error.URLError(socket.timeout("timed out"))
+
+    monkeypatch.setattr(client, "_fetch_scrip_master_paths", _timeout)
+    result = client.verify_credentials()
+    assert result["ok"] is False
+    assert result["code"] == "upstream_timeout"

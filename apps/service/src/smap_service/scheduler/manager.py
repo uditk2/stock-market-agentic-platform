@@ -7,6 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 from smap_service.core.config import RuntimeConfig, resolve_db_path
 from smap_service.core.interfaces import MarketFeedClient
+from smap_service.core.recommendations import RecommendationService
 from smap_service.core.registry import PluginRegistry
 from smap_service.db.job_history import JobRun, SQLiteJobHistoryStore, now_utc
 from smap_service.db.market_data import SQLiteMarketDataStore
@@ -27,6 +28,7 @@ class SchedulerManager:
         config: RuntimeConfig,
         registry: PluginRegistry,
         market_client: MarketFeedClient,
+        recommendations: RecommendationService,
     ):
         self._config = config
         self._registry = registry
@@ -36,6 +38,7 @@ class SchedulerManager:
             history_retention_days=config.history_retention_days,
         )
         self._market_data = SQLiteMarketDataStore(db_path=resolve_db_path(config))
+        self._recommendations = recommendations
         self._scheduler = BackgroundScheduler()
 
     def start(self) -> None:
@@ -69,6 +72,14 @@ class SchedulerManager:
             "interval",
             seconds=self._config.scheduler.signals_interval_seconds,
             id="signals",
+            max_instances=1,
+            replace_existing=True,
+        )
+        self._scheduler.add_job(
+            self._run_recommendation_job,
+            "interval",
+            seconds=self._config.scheduler.recommendations_interval_seconds,
+            id="recommendations",
             max_instances=1,
             replace_existing=True,
         )
@@ -143,3 +154,16 @@ class SchedulerManager:
             "compute_signals",
             lambda: compute_signals(self._market_data),
         )
+
+    def _run_recommendation_job(self) -> None:
+        self._record(
+            "generate_recommendations",
+            lambda: JobRunResultAdapter(self._recommendations.generate_from_signals()),
+        )
+
+
+class JobRunResultAdapter:
+    def __init__(self, count: int):
+        self.records_processed = count
+        self.connector = "recommendation_engine"
+        self.attribution = {}

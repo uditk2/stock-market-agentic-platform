@@ -19,6 +19,10 @@ class BrokerSelectionRequest(BaseModel):
     credentials: dict[str, str]
 
 
+class StrategyArtifactRequest(BaseModel):
+    strategy_text: str = Field(min_length=1)
+
+
 def build_router(runtime: AppRuntime) -> APIRouter:
     router = APIRouter()
 
@@ -115,6 +119,15 @@ def build_router(runtime: AppRuntime) -> APIRouter:
             "required_fields": list(REQUIRED_CREDENTIAL_FIELDS.get(provider, ())),
         }
 
+    @router.post("/strategy/artifacts")
+    def create_strategy_artifact(request: StrategyArtifactRequest) -> dict[str, Any]:
+        row = runtime.recommendations.save_strategy_text(request.strategy_text)
+        return {"ok": True, "item": row}
+
+    @router.get("/strategy/artifacts")
+    def list_strategy_artifacts(limit: int = 20) -> dict[str, Any]:
+        return {"items": runtime.recommendations.list_strategy_artifacts(limit=limit)}
+
     @router.get("/connectors/diagnostics")
     def connectors_diagnostics() -> dict[str, Any]:
         history_rows = runtime.scheduler.runtime().history.recent(limit=100)
@@ -132,6 +145,7 @@ def build_router(runtime: AppRuntime) -> APIRouter:
         news_last = _latest_for_job(history_rows, "ingest_news")
         announcements_last = _latest_for_job(history_rows, "ingest_announcements")
         signals_last = _latest_for_job(history_rows, "compute_signals")
+        recommendations_last = _latest_for_job(history_rows, "generate_recommendations")
         verification: dict[str, Any] = {"ok": None, "code": "not_supported", "message": "verification not supported"}
         if hasattr(runtime.market_client, "verify_credentials"):
             try:
@@ -157,6 +171,9 @@ def build_router(runtime: AppRuntime) -> APIRouter:
             "scheduler_observability": _build_observability(history_rows),
             "signals": {
                 "last_run": _run_to_summary(signals_last),
+            },
+            "recommendations": {
+                "last_run": _run_to_summary(recommendations_last),
             },
         }
 

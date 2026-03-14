@@ -540,3 +540,28 @@ Acceptance target:
 - Signal job runs and persists rows with stable IDs.
 - API diagnostics include latest signal-job run summary.
 - Tests validate deterministic `signal_id`, scoring output shape, and persistence path.
+
+## 19. W15H FR9-FR12 Strategy Artifacts and Recommendation Contract (March 2026)
+Objective:
+- Implement FR9-FR12 foundation:
+  - versioned strategy artifact persistence,
+  - richer recommendation payload contract,
+  - recommendation-to-signal linkage persistence,
+  - guardrail-based publish/suppress behavior.
+
+Design:
+- Add strategy artifact persistence table + API write/read path.
+- Build recommendation generation job from persisted signals with required fields:
+  - direction, entry_price, stop_loss, target_1, optional target_2, confidence, rationale.
+- Persist linkage rows between recommendation IDs and source signal IDs.
+- Enforce baseline guardrails:
+  - minimum confidence threshold,
+  - non-empty rationale,
+  - required numeric fields.
+- Persist suppressed recommendations with explicit suppress reason for audit.
+
+Acceptance target:
+- API accepts free-text strategy and versions artifacts.
+- Recommendation rows include FR10-required fields.
+- Linkage table populated for generated recommendations.
+- Guardrail suppression behavior is explicit and test-covered.

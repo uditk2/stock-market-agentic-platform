@@ -564,3 +564,30 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Add tests and validate service suite.
 - Risks and open questions:
   - Score quality is baseline and requires iterative calibration with real market outcomes.
+
+### Current Slice: W15H FR9-FR12 Strategy and Recommendation Contract
+- Problem statement:
+  - FR9-FR12 remain incomplete: no strategy artifact versioning, no full recommendation contract, and limited publish guardrails/linkage.
+- Constraints and assumptions:
+  - Keep API backward-compatible where practical.
+  - Keep recommendation generation deterministic and auditable.
+- Design alternatives considered:
+  1. Continue static recommendation payloads: rejected.
+  2. Full production recommendation engine in one pass: rejected (too broad).
+  3. Add persistence + contract + baseline guardrails with signal linkage: chosen.
+- Chosen architecture:
+  - New strategy artifact persistence with free-text versioning.
+  - New recommendation persistence model with FR10 fields.
+  - Link table from recommendation to signal IDs.
+  - Guardrail suppress-on-fail logic with stored suppress reason.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/db/market_data.py`
+  - `apps/service/src/smap_service/core/recommendations.py`
+  - `apps/service/src/smap_service/api/routes.py`
+  - `apps/service/src/smap_service/scheduler/manager.py` (job wiring)
+- Delivery plan:
+  - Add schema and persistence paths.
+  - Add strategy/recommendation APIs.
+  - Add generation + guardrails + tests.
+- Risks and open questions:
+  - Guardrail thresholds are baseline and may require calibration.

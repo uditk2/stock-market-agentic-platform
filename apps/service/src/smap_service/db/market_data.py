@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from threading import Lock
@@ -191,6 +192,227 @@ class SQLiteMarketDataStore:
             conn.commit()
         return len(signals)
 
+    def list_recent_signals(self, limit: int = 200) -> list[dict[str, object]]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT signal_id, symbol, timeframe, as_of, support, resistance,
+                       breakout, reversal, consolidation, volume_spike,
+                       sentiment_score, fused_score, features_json
+                FROM signals
+                ORDER BY as_of DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        output: list[dict[str, object]] = []
+        for row in rows:
+            output.append(
+                {
+                    "signal_id": row[0],
+                    "symbol": row[1],
+                    "timeframe": row[2],
+                    "as_of": row[3],
+                    "support": row[4],
+                    "resistance": row[5],
+                    "breakout": bool(row[6]),
+                    "reversal": bool(row[7]),
+                    "consolidation": bool(row[8]),
+                    "volume_spike": bool(row[9]),
+                    "sentiment_score": row[10],
+                    "fused_score": row[11],
+                    "features": json.loads(row[12] or "{}"),
+                }
+            )
+        return output
+
+    def save_strategy_artifact(self, strategy_text: str) -> dict[str, object]:
+        strategy_text = strategy_text.strip()
+        artifact_id = f"strat-{uuid.uuid4().hex[:12]}"
+        created_at = now_utc().isoformat()
+        with self._lock, self._connect() as conn:
+            current = conn.execute("SELECT COALESCE(MAX(version), 0) FROM strategy_artifacts").fetchone()
+            version = int(current[0]) + 1
+            conn.execute(
+                """
+                INSERT INTO strategy_artifacts (artifact_id, version, strategy_text, created_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (artifact_id, version, strategy_text, created_at),
+            )
+            conn.commit()
+        return {
+            "artifact_id": artifact_id,
+            "version": version,
+            "strategy_text": strategy_text,
+            "created_at": created_at,
+        }
+
+    def latest_strategy_artifact(self) -> dict[str, object] | None:
+        with self._lock, self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT artifact_id, version, strategy_text, created_at
+                FROM strategy_artifacts
+                ORDER BY version DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "artifact_id": row[0],
+            "version": row[1],
+            "strategy_text": row[2],
+            "created_at": row[3],
+        }
+
+    def list_strategy_artifacts(self, limit: int = 20) -> list[dict[str, object]]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT artifact_id, version, strategy_text, created_at
+                FROM strategy_artifacts
+                ORDER BY version DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [
+            {
+                "artifact_id": row[0],
+                "version": row[1],
+                "strategy_text": row[2],
+                "created_at": row[3],
+            }
+            for row in rows
+        ]
+
+    def save_recommendations(self, rows: list[dict[str, object]]) -> int:
+        if not rows:
+            return 0
+        with self._lock, self._connect() as conn:
+            for row in rows:
+                conn.execute(
+                    """
+                    INSERT INTO recommendations (
+                        recommendation_id, symbol, direction, entry_price, stop_loss,
+                        target_1, target_2, confidence, rationale, strategy_artifact_id,
+                        status, suppress_reason, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(recommendation_id) DO UPDATE SET
+                        direction = excluded.direction,
+                        entry_price = excluded.entry_price,
+                        stop_loss = excluded.stop_loss,
+                        target_1 = excluded.target_1,
+                        target_2 = excluded.target_2,
+                        confidence = excluded.confidence,
+                        rationale = excluded.rationale,
+                        strategy_artifact_id = excluded.strategy_artifact_id,
+                        status = excluded.status,
+                        suppress_reason = excluded.suppress_reason
+                    """,
+                    (
+                        row["recommendation_id"],
+                        row["symbol"],
+                        row["direction"],
+                        row["entry_price"],
+                        row["stop_loss"],
+                        row["target_1"],
+                        row.get("target_2"),
+                        row["confidence"],
+                        row["rationale"],
+                        row["strategy_artifact_id"],
+                        row["status"],
+                        row.get("suppress_reason"),
+                        row["created_at"],
+                    ),
+                )
+                links = row.get("signal_ids", [])
+                for signal_id in links:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO recommendation_signal_links (recommendation_id, signal_id)
+                        VALUES (?, ?)
+                        """,
+                        (row["recommendation_id"], signal_id),
+                    )
+            conn.commit()
+        return len(rows)
+
+    def list_recommendations(self, query: str | None = None, include_suppressed: bool = False) -> list[dict[str, object]]:
+        with self._lock, self._connect() as conn:
+            sql = """
+                SELECT recommendation_id, symbol, direction, entry_price, stop_loss,
+                       target_1, target_2, confidence, rationale, strategy_artifact_id,
+                       status, suppress_reason, created_at
+                FROM recommendations
+            """
+            clauses: list[str] = []
+            params: list[object] = []
+            if not include_suppressed:
+                clauses.append("status = 'published'")
+            if query:
+                clauses.append("LOWER(symbol) LIKE ?")
+                params.append(f"%{query.strip().lower()}%")
+            if clauses:
+                sql += " WHERE " + " AND ".join(clauses)
+            sql += " ORDER BY confidence DESC, created_at DESC LIMIT 200"
+            rows = conn.execute(sql, tuple(params)).fetchall()
+        return [
+            {
+                "recommendation_id": row[0],
+                "symbol": row[1],
+                "direction": row[2],
+                "entry_price": row[3],
+                "stop_loss": row[4],
+                "target_1": row[5],
+                "target_2": row[6],
+                "confidence": row[7],
+                "rationale": row[8],
+                "strategy_artifact_id": row[9],
+                "status": row[10],
+                "suppress_reason": row[11],
+                "created_at": row[12],
+            }
+            for row in rows
+        ]
+
+    def get_recommendation(self, recommendation_id: str) -> dict[str, object] | None:
+        with self._lock, self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT recommendation_id, symbol, direction, entry_price, stop_loss,
+                       target_1, target_2, confidence, rationale, strategy_artifact_id,
+                       status, suppress_reason, created_at
+                FROM recommendations
+                WHERE recommendation_id = ?
+                """,
+                (recommendation_id,),
+            ).fetchone()
+            link_rows = conn.execute(
+                "SELECT signal_id FROM recommendation_signal_links WHERE recommendation_id = ?",
+                (recommendation_id,),
+            ).fetchall()
+        if row is None:
+            return None
+        return {
+            "recommendation_id": row[0],
+            "symbol": row[1],
+            "direction": row[2],
+            "entry_price": row[3],
+            "stop_loss": row[4],
+            "target_1": row[5],
+            "target_2": row[6],
+            "confidence": row[7],
+            "rationale": row[8],
+            "strategy_artifact_id": row[9],
+            "status": row[10],
+            "suppress_reason": row[11],
+            "created_at": row[12],
+            "signal_ids": [link[0] for link in link_rows],
+        }
+
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)
 
@@ -249,6 +471,44 @@ class SQLiteMarketDataStore:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS strategy_artifacts (
+                    artifact_id TEXT PRIMARY KEY,
+                    version INTEGER NOT NULL UNIQUE,
+                    strategy_text TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS recommendations (
+                    recommendation_id TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL,
+                    direction TEXT NOT NULL,
+                    entry_price REAL NOT NULL,
+                    stop_loss REAL NOT NULL,
+                    target_1 REAL NOT NULL,
+                    target_2 REAL,
+                    confidence REAL NOT NULL,
+                    rationale TEXT NOT NULL,
+                    strategy_artifact_id TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    suppress_reason TEXT,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS recommendation_signal_links (
+                    recommendation_id TEXT NOT NULL,
+                    signal_id TEXT NOT NULL,
+                    PRIMARY KEY (recommendation_id, signal_id)
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_market_bars_symbol_time
                 ON market_bars (symbol, timeframe, as_of DESC)
                 """
@@ -263,6 +523,12 @@ class SQLiteMarketDataStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_signals_symbol_asof
                 ON signals (symbol, as_of DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_recommendations_symbol
+                ON recommendations (symbol, confidence DESC)
                 """
             )
             conn.commit()

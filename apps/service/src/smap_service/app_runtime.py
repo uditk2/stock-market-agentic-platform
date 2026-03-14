@@ -10,6 +10,7 @@ from smap_service.core.config import (
 )
 from smap_service.core.recommendations import RecommendationService
 from smap_service.core.registry import PluginRegistry
+from smap_service.db.market_data import SQLiteMarketDataStore
 from smap_service.db.provider_credentials import SQLiteProviderCredentialStore
 from smap_service.plugins.llm.claude_adapter import ClaudeAdapter
 from smap_service.plugins.llm.codex_adapter import CodexAdapter
@@ -26,6 +27,7 @@ class AppRuntime:
     config: RuntimeConfig
     registry: PluginRegistry
     scheduler: SchedulerManager
+    market_data: SQLiteMarketDataStore
     credentials: SQLiteProviderCredentialStore
     recommendations: RecommendationService
     market_client: KotakMarketFeedClient
@@ -50,17 +52,20 @@ def build_runtime() -> AppRuntime:
         db_path=db_path,
         key_path=resolve_credentials_key_path(config),
     )
+    market_data = SQLiteMarketDataStore(db_path=db_path)
+    recommendations = RecommendationService(store=market_data)
     market_client = KotakMarketFeedClient(credentials=credentials)
     scheduler = SchedulerManager(
         config=config,
         registry=registry,
         market_client=market_client,
+        recommendations=recommendations,
     )
-    recommendations = RecommendationService()
     return AppRuntime(
         config=config,
         registry=registry,
         scheduler=scheduler,
+        market_data=market_data,
         credentials=credentials,
         recommendations=recommendations,
         market_client=market_client,

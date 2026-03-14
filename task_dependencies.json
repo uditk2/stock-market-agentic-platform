@@ -201,6 +201,13 @@
       "depends_on": [
         "W15F"
       ]
+    },
+    {
+      "id": "W15H",
+      "name": "FR9-FR12 Strategy Artifacts and Recommendation Contract",
+      "depends_on": [
+        "W15G"
+      ]
     }
   ]
 }

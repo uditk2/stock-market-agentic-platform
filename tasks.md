@@ -393,3 +393,21 @@
 - Add baseline S/R + pattern + fused-score signal engine.
 - Persist stable signal IDs and metadata.
 - Run signal job in scheduler and include observability.
+
+## Iteration 51 (W15H FR9-FR12 Draft)
+1. Add strategy artifact persistence with versioning.
+2. Add full recommendation contract fields and persistence model.
+3. Add recommendation-signal linkage persistence.
+4. Add guardrail suppression path.
+5. Add tests and API route integration.
+
+## Iteration 52 (W15H FR9-FR12 Refined)
+1. Keep free-text strategy acceptance unconditional.
+2. Keep generation deterministic from stored signals.
+3. Persist suppress reasons for observability/audit.
+4. Preserve compatibility for recommendation listing/search routes.
+
+14. W15H FR9-FR12 Strategy Artifacts and Recommendation Contract
+- Implement versioned strategy artifacts.
+- Implement recommendation contract fields and linkage table.
+- Implement baseline publish guardrails + suppression audit fields.

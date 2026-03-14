@@ -27,7 +27,7 @@ def test_recommendations_and_provider_routes_shape() -> None:
     assert recs.status_code == 200
     rec_payload = recs.json()
     assert rec_payload["sort"] == "confidence_desc"
-    assert len(rec_payload["items"]) >= 1
+    assert isinstance(rec_payload["items"], list)
 
     schema = client.get("/providers/brokers/schema/kotak_neo")
     assert schema.status_code == 200
@@ -40,6 +40,7 @@ def test_recommendations_and_provider_routes_shape() -> None:
     assert "news" in diag_payload
     assert "scheduler_observability" in diag_payload
     assert "signals" in diag_payload
+    assert "recommendations" in diag_payload
     assert "failure_count" in diag_payload["scheduler_observability"]
 
     observability = client.get("/connectors/observability")
@@ -94,3 +95,17 @@ def test_provider_selection_saves_kotak_credentials_when_live_verification_passe
     payload = response.json()
     assert payload["ok"] is True
     assert payload["selected_provider"] == "kotak_neo"
+
+
+def test_strategy_artifact_round_trip() -> None:
+    client = TestClient(app)
+    created = client.post("/strategy/artifacts", json={"strategy_text": "Buy high momentum with guardrails."})
+    assert created.status_code == 200
+    payload = created.json()
+    assert payload["ok"] is True
+    assert "artifact_id" in payload["item"]
+
+    listed = client.get("/strategy/artifacts")
+    assert listed.status_code == 200
+    items = listed.json()["items"]
+    assert len(items) >= 1

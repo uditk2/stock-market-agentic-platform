@@ -11,6 +11,7 @@ class SchedulerConfig(BaseModel):
     news_interval_seconds: int = Field(default=300, ge=60)
     announcements_interval_seconds: int = Field(default=300, ge=60)
     signals_interval_seconds: int = Field(default=120, ge=60)
+    recommendations_interval_seconds: int = Field(default=180, ge=60)
 
 
 class RuntimeConfig(BaseModel):

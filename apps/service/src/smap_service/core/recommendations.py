@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+import hashlib
+from dataclasses import dataclass
+from datetime import UTC, datetime
+
+from smap_service.db.market_data import SQLiteMarketDataStore
 
 
 @dataclass
@@ -11,71 +15,154 @@ class Recommendation:
     direction: str
     summary: str
     tabs: dict[str, list[str]]
+    entry_price: float
+    stop_loss: float
+    target_1: float
+    target_2: float | None
+    strategy_artifact_id: str
+    signal_ids: list[str]
+    status: str
+    suppress_reason: str | None
 
 
 class RecommendationService:
-    def __init__(self):
-        self._items: list[Recommendation] = [
-            Recommendation(
-                recommendation_id="rec-1",
-                symbol="RELIANCE-FUT",
-                confidence=0.88,
-                direction="long",
-                summary="Momentum with supportive earnings commentary.",
-                tabs={
-                    "news": [
-                        "Positive management guidance commentary",
-                        "Sector demand outlook improved in last 24h",
-                    ],
-                    "technicals": [
-                        "Price above 20/50 EMA",
-                        "RSI near 61 with rising volume",
-                    ],
-                    "strategy": [
-                        "Default momentum module score is positive",
-                        "Risk/reward above configured threshold",
-                    ],
-                },
-            ),
-            Recommendation(
-                recommendation_id="rec-2",
-                symbol="TCS-FUT",
-                confidence=0.81,
-                direction="long",
-                summary="Trend continuation with moderate volatility.",
-                tabs={
-                    "news": ["Large-deal pipeline updates remain constructive"],
-                    "technicals": ["Higher-high / higher-low sequence intact"],
-                    "strategy": ["Signal persistence across two intervals"],
-                },
-            ),
-            Recommendation(
-                recommendation_id="rec-3",
-                symbol="INFY-FUT",
-                confidence=0.74,
-                direction="short",
-                summary="Weak short-term momentum with negative breadth.",
-                tabs={
-                    "news": ["Muted discretionary spending signals from peers"],
-                    "technicals": ["Break below short-term support band"],
-                    "strategy": ["Downside breakout criteria met"],
-                },
-            ),
-        ]
+    def __init__(self, store: SQLiteMarketDataStore):
+        self._store = store
+
+    def save_strategy_text(self, strategy_text: str) -> dict[str, object]:
+        return self._store.save_strategy_artifact(strategy_text=strategy_text)
+
+    def list_strategy_artifacts(self, limit: int = 20) -> list[dict[str, object]]:
+        return self._store.list_strategy_artifacts(limit=limit)
+
+    def generate_from_signals(self) -> int:
+        latest_strategy = self._store.latest_strategy_artifact()
+        if latest_strategy is None:
+            latest_strategy = self._store.save_strategy_artifact("Default momentum strategy baseline.")
+
+        strategy_artifact_id = str(latest_strategy["artifact_id"])
+        rows = self._store.list_recent_signals(limit=200)
+        generated: list[dict[str, object]] = []
+        for row in rows:
+            confidence = float(row.get("fused_score", 0.0))
+            symbol = str(row.get("symbol", "UNKNOWN"))
+            signal_id = str(row.get("signal_id", ""))
+            direction = "long" if confidence >= 0.5 else "short"
+            support = float(row.get("support", 0.0))
+            resistance = float(row.get("resistance", 0.0))
+            entry_price = resistance if direction == "long" else support
+            stop_loss = support if direction == "long" else resistance
+            spread = abs(resistance - support)
+            target_1 = entry_price + spread if direction == "long" else entry_price - spread
+            target_2 = entry_price + (spread * 1.5) if direction == "long" else entry_price - (spread * 1.5)
+            rationale = (
+                f"Signal fusion={confidence:.2f}; breakout={row.get('breakout')}; "
+                f"volume_spike={row.get('volume_spike')}; sentiment={row.get('sentiment_score')}."
+            )
+            guardrail = self._guardrail_check(
+                confidence=confidence,
+                entry_price=entry_price,
+                stop_loss=stop_loss,
+                target_1=target_1,
+                rationale=rationale,
+            )
+            recommendation_id = _stable_recommendation_id(symbol=symbol, signal_id=signal_id, strategy_id=strategy_artifact_id)
+            generated.append(
+                {
+                    "recommendation_id": recommendation_id,
+                    "symbol": symbol,
+                    "direction": direction,
+                    "entry_price": entry_price,
+                    "stop_loss": stop_loss,
+                    "target_1": target_1,
+                    "target_2": target_2,
+                    "confidence": confidence,
+                    "rationale": rationale,
+                    "strategy_artifact_id": strategy_artifact_id,
+                    "status": "published" if guardrail["ok"] else "suppressed",
+                    "suppress_reason": None if guardrail["ok"] else guardrail["reason"],
+                    "created_at": now_utc().isoformat(),
+                    "signal_ids": [signal_id] if signal_id else [],
+                }
+            )
+        return self._store.save_recommendations(generated)
 
     def list(self, query: str | None = None) -> list[Recommendation]:
-        filtered = self._items
-        if query:
-            q = query.strip().lower()
-            filtered = [item for item in filtered if q in item.symbol.lower()]
-        return sorted(filtered, key=lambda item: item.confidence, reverse=True)
+        rows = self._store.list_recommendations(query=query, include_suppressed=False)
+        return [self._to_dataclass(row) for row in rows]
 
     def get(self, recommendation_id: str) -> Recommendation | None:
-        for item in self._items:
-            if item.recommendation_id == recommendation_id:
-                return item
-        return None
+        row = self._store.get_recommendation(recommendation_id)
+        if row is None:
+            return None
+        return self._to_dataclass(row)
 
     @staticmethod
     def to_dict(item: Recommendation) -> dict[str, object]:
-        return asdict(item)
+        return {
+            "recommendation_id": item.recommendation_id,
+            "symbol": item.symbol,
+            "confidence": item.confidence,
+            "direction": item.direction,
+            "summary": item.summary,
+            "tabs": item.tabs,
+            "entry_price": item.entry_price,
+            "stop_loss": item.stop_loss,
+            "target_1": item.target_1,
+            "target_2": item.target_2,
+            "strategy_artifact_id": item.strategy_artifact_id,
+            "signal_ids": item.signal_ids,
+            "status": item.status,
+            "suppress_reason": item.suppress_reason,
+        }
+
+    def _to_dataclass(self, row: dict[str, object]) -> Recommendation:
+        symbol = str(row["symbol"])
+        direction = str(row["direction"])
+        confidence = float(row["confidence"])
+        rationale = str(row["rationale"])
+        return Recommendation(
+            recommendation_id=str(row["recommendation_id"]),
+            symbol=symbol,
+            confidence=confidence,
+            direction=direction,
+            summary=rationale,
+            tabs={
+                "news": [f"Linked signals: {len(row.get('signal_ids', []))}"],
+                "technicals": [f"Direction: {direction}", f"Confidence: {confidence:.2f}"],
+                "strategy": [f"Strategy artifact: {row.get('strategy_artifact_id', '')}"],
+            },
+            entry_price=float(row["entry_price"]),
+            stop_loss=float(row["stop_loss"]),
+            target_1=float(row["target_1"]),
+            target_2=float(row["target_2"]) if row.get("target_2") is not None else None,
+            strategy_artifact_id=str(row["strategy_artifact_id"]),
+            signal_ids=[str(item) for item in row.get("signal_ids", [])],
+            status=str(row.get("status", "published")),
+            suppress_reason=str(row["suppress_reason"]) if row.get("suppress_reason") else None,
+        )
+
+    @staticmethod
+    def _guardrail_check(
+        confidence: float,
+        entry_price: float,
+        stop_loss: float,
+        target_1: float,
+        rationale: str,
+    ) -> dict[str, object]:
+        if confidence < 0.25:
+            return {"ok": False, "reason": "confidence_below_threshold"}
+        if not rationale.strip():
+            return {"ok": False, "reason": "empty_rationale"}
+        if entry_price <= 0 or stop_loss <= 0 or target_1 <= 0:
+            return {"ok": False, "reason": "invalid_numeric_fields"}
+        return {"ok": True}
+
+
+def _stable_recommendation_id(symbol: str, signal_id: str, strategy_id: str) -> str:
+    blob = f"{symbol}|{signal_id}|{strategy_id}".encode("utf-8")
+    return f"rec-{hashlib.sha256(blob).hexdigest()[:16]}"
+
+
+def now_utc() -> datetime:
+    return datetime.now(UTC)

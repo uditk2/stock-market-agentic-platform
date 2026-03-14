@@ -3,7 +3,7 @@ import urllib.error
 
 from smap_service.core.retry import retry_call
 from smap_service.ingestion.jobs import ingest_market_bars
-from smap_service.plugins.market.kotak_client import KotakMarketFeedClient
+from smap_service.plugins.market.kotak_client import KotakMarketFeedClient, _extract_symbol_root
 from smap_service.db.provider_credentials import SQLiteProviderCredentialStore
 
 
@@ -58,3 +58,8 @@ def test_kotak_verify_credentials_reports_upstream_timeout(tmp_path, monkeypatch
     result = client.verify_credentials()
     assert result["ok"] is False
     assert result["code"] == "upstream_timeout"
+
+
+def test_extract_symbol_root_parses_stock_future_symbols() -> None:
+    assert _extract_symbol_root("RELIANCE24MARFUT") == "RELIANCE"
+    assert _extract_symbol_root("NIFTY24MARFUT") == "NIFTY"

@@ -511,3 +511,30 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks and open questions:
   - FR1-FR15 includes substantial algorithmic features not yet implemented; multiple follow-up slices are expected.
   - Live Kotak validation depends on external API availability/rate limiting.
+
+### Current Slice: W15F FR1-FR4 Ingestion Persistence Foundations
+- Problem statement:
+  - FR1-FR4 require durable ingestion and broader symbol coverage, while current flow was largely transient.
+- Constraints and assumptions:
+  - Keep incremental scope limited to ingestion/persistence foundations.
+  - Keep safe fallback to fixed symbols when dynamic discovery cannot run.
+- Design alternatives considered:
+  1. Keep transient in-memory ingestion only: rejected (no lookback continuity).
+  2. Build full FR1-FR4 pipeline in one jump: rejected (too broad for a single correction slice).
+  3. Add persistent ingestion primitives + dynamic symbol discovery hook: chosen.
+- Chosen architecture:
+  - Add `SQLiteMarketDataStore` with `market_bars` and `news_items` tables.
+  - Wire scheduler jobs to persist market/news/announcement ingestion outputs.
+  - Add Kotak scrip-master-driven symbol discovery method for stock futures.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/db/market_data.py`
+  - `apps/service/src/smap_service/scheduler/manager.py`
+  - `apps/service/src/smap_service/ingestion/jobs.py`
+  - `apps/service/src/smap_service/plugins/market/kotak_client.py`
+- Delivery plan:
+  - Implement schema/store.
+  - Integrate scheduler persistence.
+  - Add tests and run full service suite.
+- Risks and open questions:
+  - Dynamic symbol discovery still depends on upstream Kotak availability.
+  - Full FR4 symbol/sector mapping quality remains a follow-up implementation track.

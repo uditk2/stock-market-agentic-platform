@@ -9,6 +9,7 @@ from smap_service.core.config import RuntimeConfig, resolve_db_path
 from smap_service.core.interfaces import MarketFeedClient
 from smap_service.core.registry import PluginRegistry
 from smap_service.db.job_history import JobRun, SQLiteJobHistoryStore, now_utc
+from smap_service.db.market_data import SQLiteMarketDataStore
 from smap_service.ingestion.jobs import ingest_announcements, ingest_market_bars, ingest_news
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class SchedulerManager:
             db_path=resolve_db_path(config),
             history_retention_days=config.history_retention_days,
         )
+        self._market_data = SQLiteMarketDataStore(db_path=resolve_db_path(config))
         self._scheduler = BackgroundScheduler()
 
     def start(self) -> None:
@@ -109,17 +111,21 @@ class SchedulerManager:
     def _run_market_job(self) -> None:
         self._record(
             "ingest_market_bars",
-            lambda: ingest_market_bars(self._market_client),
+            lambda: ingest_market_bars(self._market_client, market_data_store=self._market_data),
         )
 
     def _run_news_job(self) -> None:
         self._record(
             "ingest_news",
-            lambda: ingest_news(self._registry, self._config.news_providers),
+            lambda: ingest_news(
+                self._registry,
+                self._config.news_providers,
+                market_data_store=self._market_data,
+            ),
         )
 
     def _run_announcement_job(self) -> None:
         self._record(
             "ingest_announcements",
-            lambda: ingest_announcements(self._registry),
+            lambda: ingest_announcements(self._registry, market_data_store=self._market_data),
         )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import re
 import socket
 import urllib.error
 import urllib.parse
@@ -57,6 +58,38 @@ class KotakMarketFeedClient(MarketFeedClient):
             if item is not None:
                 bars.append(item)
         return bars
+
+    def list_active_stock_futures_symbols(self, limit: int = 400) -> list[str]:
+        selection = self._credentials.get_selection()
+        if selection.provider != "kotak_neo" or not selection.has_credentials:
+            return []
+        creds = self._credentials.get_credentials("kotak_neo") or {}
+        token = creds.get("access_token")
+        if not token:
+            return []
+        paths = self._fetch_scrip_master_paths(token=token)
+        futures_csv_url = next((path for path in paths if "nse_fo" in path.lower()), "")
+        if not futures_csv_url:
+            return []
+        rows = self._fetch_csv_rows(futures_csv_url)
+        excluded_index_roots = {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX"}
+        discovered: list[str] = []
+        seen: set[str] = set()
+        for row in rows:
+            raw = self._pick_first(row, ("pTrdSymbol", "trading_symbol", "symbol", "pSymbolName"))
+            if not raw:
+                continue
+            root = _extract_symbol_root(raw.upper())
+            if not root or root in excluded_index_roots:
+                continue
+            symbol = f"{root}-FUT"
+            if symbol in seen:
+                continue
+            seen.add(symbol)
+            discovered.append(symbol)
+            if len(discovered) >= limit:
+                break
+        return sorted(discovered)
 
     def verify_credentials(self) -> dict[str, Any]:
         selection = self._credentials.get_selection()
@@ -179,6 +212,14 @@ class KotakMarketFeedClient(MarketFeedClient):
         return None
 
     @staticmethod
+    def _pick_first(row: dict[str, str], keys: tuple[str, ...]) -> str:
+        for key in keys:
+            value = row.get(key)
+            if value and str(value).strip():
+                return str(value).strip()
+        return ""
+
+    @staticmethod
     def _extract_quote_payload(payload: dict[str, Any]) -> dict[str, Any]:
         data = payload.get("data")
         if isinstance(data, list) and data:
@@ -208,3 +249,10 @@ class KotakMarketFeedClient(MarketFeedClient):
             volume=int(volume_value or 0),
             as_of=str(as_of_value or ""),
         )
+
+
+def _extract_symbol_root(label: str) -> str:
+    match = re.match(r"([A-Z&]+?)(\d{2}[A-Z]{3}FUT)", label)
+    if match:
+        return match.group(1)
+    return ""

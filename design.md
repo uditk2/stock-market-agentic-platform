@@ -501,3 +501,20 @@ Acceptance target:
 - Broker credential save must reject invalid Kotak token before persistence.
 - Automated tests pass after changes; new tests cover the pre-save token validation path.
 - FR coverage matrix is updated with explicit met/partial/missing status and linked issues.
+
+## 17. W15F FR1-FR4 Ingestion Persistence Foundations (March 2026)
+Objective:
+- Add durable ingestion persistence and dynamic symbol-universe scaffolding to improve FR1-FR4 compliance.
+
+Design:
+- Introduce `SQLiteMarketDataStore` with:
+  - `market_bars` table keyed by `(symbol, timeframe, as_of)`.
+  - `news_items` table keyed by `(channel, external_id)`.
+- Wire scheduler market/news/announcement jobs to persist fetched records each run.
+- Add Kotak connector symbol discovery helper from NSE F&O scrip-master rows to reduce reliance on hardcoded symbols.
+- Keep safe fallback to current default symbol list when discovery cannot run.
+
+Acceptance target:
+- Service test suite remains green after persistence integration.
+- Ingestion jobs persist records through the new store.
+- Dynamic symbol discovery path exists and is test-covered for parsing behavior.

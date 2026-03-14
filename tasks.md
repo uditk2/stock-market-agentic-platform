@@ -359,3 +359,20 @@
 - W15C: Kotak pre-save token validation gate and credential-save contract update.
 - W15D: End-to-end regression run (tests + API workflow checks with provided token).
 - W15E: Reimagined user flow/data flow documentation and revised gap report publication.
+
+## Iteration 47 (W15 FR1-FR4 Ingestion Slice Draft)
+1. Add durable storage tables for ingested market bars and news/announcement items.
+2. Remove hard dependency on fixed small symbol list by adding dynamic symbol-universe discovery hook from Kotak scrip master (with fallback).
+3. Persist scheduler-ingested records to SQLite for lookback continuity.
+4. Add tests for new persistence store and symbol extraction behavior.
+
+## Iteration 48 (W15 FR1-FR4 Ingestion Slice Refined)
+1. Keep this slice focused on ingestion correctness primitives, not full scoring engine.
+2. Preserve backward compatibility with existing scheduler and tests.
+3. Enforce safe fallback behavior when dynamic symbol discovery is unavailable.
+4. Keep explicit issue tracking for remaining FR gaps beyond ingestion.
+
+12. W15F FR1-FR4 Ingestion Persistence Foundations
+- Introduce `SQLiteMarketDataStore` for `market_bars` and `news_items`.
+- Integrate scheduler jobs to persist ingestion outputs.
+- Add dynamic stock-futures symbol-universe discovery support in Kotak connector.

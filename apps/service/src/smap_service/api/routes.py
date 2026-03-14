@@ -131,6 +131,7 @@ def build_router(runtime: AppRuntime) -> APIRouter:
         market_last = _latest_for_job(history_rows, "ingest_market_bars")
         news_last = _latest_for_job(history_rows, "ingest_news")
         announcements_last = _latest_for_job(history_rows, "ingest_announcements")
+        signals_last = _latest_for_job(history_rows, "compute_signals")
         verification: dict[str, Any] = {"ok": None, "code": "not_supported", "message": "verification not supported"}
         if hasattr(runtime.market_client, "verify_credentials"):
             try:
@@ -154,6 +155,9 @@ def build_router(runtime: AppRuntime) -> APIRouter:
                 "last_announcements_run": _run_to_summary(announcements_last),
             },
             "scheduler_observability": _build_observability(history_rows),
+            "signals": {
+                "last_run": _run_to_summary(signals_last),
+            },
         }
 
     @router.get("/connectors/observability")

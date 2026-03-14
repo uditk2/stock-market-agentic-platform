@@ -10,7 +10,7 @@ from smap_service.core.interfaces import MarketFeedClient
 from smap_service.core.registry import PluginRegistry
 from smap_service.db.job_history import JobRun, SQLiteJobHistoryStore, now_utc
 from smap_service.db.market_data import SQLiteMarketDataStore
-from smap_service.ingestion.jobs import ingest_announcements, ingest_market_bars, ingest_news
+from smap_service.ingestion.jobs import compute_signals, ingest_announcements, ingest_market_bars, ingest_news
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,14 @@ class SchedulerManager:
             "interval",
             seconds=self._config.scheduler.announcements_interval_seconds,
             id="announcements",
+            max_instances=1,
+            replace_existing=True,
+        )
+        self._scheduler.add_job(
+            self._run_signal_job,
+            "interval",
+            seconds=self._config.scheduler.signals_interval_seconds,
+            id="signals",
             max_instances=1,
             replace_existing=True,
         )
@@ -128,4 +136,10 @@ class SchedulerManager:
         self._record(
             "ingest_announcements",
             lambda: ingest_announcements(self._registry, market_data_store=self._market_data),
+        )
+
+    def _run_signal_job(self) -> None:
+        self._record(
+            "compute_signals",
+            lambda: compute_signals(self._market_data),
         )

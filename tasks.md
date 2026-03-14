@@ -376,3 +376,20 @@
 - Introduce `SQLiteMarketDataStore` for `market_bars` and `news_items`.
 - Integrate scheduler jobs to persist ingestion outputs.
 - Add dynamic stock-futures symbol-universe discovery support in Kotak connector.
+
+## Iteration 49 (W15G FR5-FR8 Signal Draft)
+1. Add signal computation module with deterministic output.
+2. Persist signals with stable IDs.
+3. Add scheduler signal job and observability fields.
+4. Add unit tests for signal ID stability and persisted output.
+
+## Iteration 50 (W15G FR5-FR8 Signal Refined)
+1. Keep feature set explainable and auditable in stored payload.
+2. Ensure no breakage to existing ingestion/recommendation endpoints.
+3. Expose signal-job state via diagnostics.
+4. Keep this slice foundation-only; advanced calibration remains follow-up.
+
+13. W15G FR5-FR8 Signal Computation and Persistence Foundations
+- Add baseline S/R + pattern + fused-score signal engine.
+- Persist stable signal IDs and metadata.
+- Run signal job in scheduler and include observability.

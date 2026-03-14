@@ -538,3 +538,29 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
 - Risks and open questions:
   - Dynamic symbol discovery still depends on upstream Kotak availability.
   - Full FR4 symbol/sector mapping quality remains a follow-up implementation track.
+
+### Current Slice: W15G FR5-FR8 Signal Computation and Persistence
+- Problem statement:
+  - FR5-FR8 are currently unimplemented; no persisted signal model exists.
+- Constraints and assumptions:
+  - Keep initial signal model deterministic and testable.
+  - Build on newly persisted market/news ingestion data.
+- Design alternatives considered:
+  1. Add only placeholder signal rows: rejected (not functionally meaningful).
+  2. Full quantitative stack in one step: rejected (too broad/risky).
+  3. Incremental deterministic signal engine + persistence schema: chosen.
+- Chosen architecture:
+  - New signal engine module computes S/R proxies, pattern flags, and fused score.
+  - New `signals` table stores stable `signal_id` and feature payload.
+  - Scheduler adds `compute_signals` job and records observability metadata.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/core/signals.py` (new)
+  - `apps/service/src/smap_service/db/market_data.py`
+  - `apps/service/src/smap_service/scheduler/manager.py`
+  - `apps/service/src/smap_service/api/routes.py` (diagnostics surface)
+- Delivery plan:
+  - Add schema + engine.
+  - Wire scheduler job.
+  - Add tests and validate service suite.
+- Risks and open questions:
+  - Score quality is baseline and requires iterative calibration with real market outcomes.

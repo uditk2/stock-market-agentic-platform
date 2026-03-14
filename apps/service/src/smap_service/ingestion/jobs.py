@@ -6,6 +6,7 @@ from typing import Any
 
 from smap_service.core.interfaces import MarketFeedClient, NewsItem
 from smap_service.core.registry import PluginRegistry
+from smap_service.core.signals import compute_signals_from_store
 from smap_service.db.market_data import SQLiteMarketDataStore
 
 logger = logging.getLogger(__name__)
@@ -90,6 +91,18 @@ def ingest_announcements(
         records_processed=count,
         connector="nse_announcements",
         attribution={"provider_available": bool(provider)},
+    )
+
+
+def compute_signals(market_data_store: SQLiteMarketDataStore) -> JobResult:
+    signals = compute_signals_from_store(market_data_store)
+    persisted = market_data_store.save_signals(signals)
+    return JobResult(
+        job_name="compute_signals",
+        status="success",
+        records_processed=persisted,
+        connector="signal_engine",
+        attribution={"symbols_scored": len({item.symbol for item in signals})},
     )
 
 

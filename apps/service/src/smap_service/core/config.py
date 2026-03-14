@@ -10,6 +10,7 @@ class SchedulerConfig(BaseModel):
     market_bars_interval_seconds: int = Field(default=60, ge=30)
     news_interval_seconds: int = Field(default=300, ge=60)
     announcements_interval_seconds: int = Field(default=300, ge=60)
+    signals_interval_seconds: int = Field(default=120, ge=60)
 
 
 class RuntimeConfig(BaseModel):

@@ -91,6 +91,106 @@ class SQLiteMarketDataStore:
             conn.commit()
         return len(items)
 
+    def list_recent_bars_by_symbol(self, limit_per_symbol: int = 32) -> dict[str, list[dict[str, object]]]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT symbol, timeframe, as_of, open, high, low, close, volume
+                FROM market_bars
+                ORDER BY symbol ASC, as_of DESC
+                """
+            ).fetchall()
+        grouped: dict[str, list[dict[str, object]]] = {}
+        for row in rows:
+            symbol = str(row[0])
+            bucket = grouped.setdefault(symbol, [])
+            if len(bucket) >= limit_per_symbol:
+                continue
+            bucket.append(
+                {
+                    "symbol": symbol,
+                    "timeframe": row[1],
+                    "as_of": row[2],
+                    "open": row[3],
+                    "high": row[4],
+                    "low": row[5],
+                    "close": row[6],
+                    "volume": row[7],
+                }
+            )
+        return grouped
+
+    def list_recent_news_items(self, limit: int = 300) -> list[dict[str, object]]:
+        with self._lock, self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT source, external_id, published_at, headline, body, symbols_json
+                FROM news_items
+                ORDER BY published_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        output: list[dict[str, object]] = []
+        for row in rows:
+            output.append(
+                {
+                    "source": row[0],
+                    "external_id": row[1],
+                    "published_at": row[2],
+                    "headline": row[3],
+                    "body": row[4],
+                    "symbols": json.loads(row[5] or "[]"),
+                }
+            )
+        return output
+
+    def save_signals(self, signals: list[object]) -> int:
+        if not signals:
+            return 0
+        with self._lock, self._connect() as conn:
+            rows = [
+                (
+                    item.signal_id,
+                    item.symbol,
+                    item.timeframe,
+                    item.as_of,
+                    item.support,
+                    item.resistance,
+                    int(item.breakout),
+                    int(item.reversal),
+                    int(item.consolidation),
+                    int(item.volume_spike),
+                    item.sentiment_score,
+                    item.fused_score,
+                    item.features_json,
+                    now_utc().isoformat(),
+                )
+                for item in signals
+            ]
+            conn.executemany(
+                """
+                INSERT INTO signals (
+                    signal_id, symbol, timeframe, as_of, support, resistance,
+                    breakout, reversal, consolidation, volume_spike,
+                    sentiment_score, fused_score, features_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(signal_id) DO UPDATE SET
+                    support = excluded.support,
+                    resistance = excluded.resistance,
+                    breakout = excluded.breakout,
+                    reversal = excluded.reversal,
+                    consolidation = excluded.consolidation,
+                    volume_spike = excluded.volume_spike,
+                    sentiment_score = excluded.sentiment_score,
+                    fused_score = excluded.fused_score,
+                    features_json = excluded.features_json
+                """,
+                rows,
+            )
+            conn.commit()
+        return len(signals)
+
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self._db_path)
 
@@ -129,6 +229,26 @@ class SQLiteMarketDataStore:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS signals (
+                    signal_id TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL,
+                    timeframe TEXT NOT NULL,
+                    as_of TEXT NOT NULL,
+                    support REAL NOT NULL,
+                    resistance REAL NOT NULL,
+                    breakout INTEGER NOT NULL,
+                    reversal INTEGER NOT NULL,
+                    consolidation INTEGER NOT NULL,
+                    volume_spike INTEGER NOT NULL,
+                    sentiment_score REAL NOT NULL,
+                    fused_score REAL NOT NULL,
+                    features_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE INDEX IF NOT EXISTS idx_market_bars_symbol_time
                 ON market_bars (symbol, timeframe, as_of DESC)
                 """
@@ -137,6 +257,12 @@ class SQLiteMarketDataStore:
                 """
                 CREATE INDEX IF NOT EXISTS idx_news_items_channel_time
                 ON news_items (channel, published_at DESC)
+                """
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_signals_symbol_asof
+                ON signals (symbol, as_of DESC)
                 """
             )
             conn.commit()

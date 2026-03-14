@@ -518,3 +518,25 @@ Acceptance target:
 - Service test suite remains green after persistence integration.
 - Ingestion jobs persist records through the new store.
 - Dynamic symbol discovery path exists and is test-covered for parsing behavior.
+
+## 18. W15G FR5-FR8 Signal Engine Foundations (March 2026)
+Objective:
+- Add first production signal-computation pipeline for FR5-FR8:
+  - compute support/resistance style bands,
+  - detect basic technical patterns,
+  - fuse signals into a ranked score,
+  - persist stable signal IDs.
+
+Design:
+- Introduce dedicated signal engine module that consumes persisted market bars and news items.
+- Add `signals` table in SQLite and deterministic `signal_id` generation from symbol/timeframe/as_of/features.
+- Keep initial algorithm bounded and explainable:
+  - S/R approximation from rolling highs/lows and close clustering.
+  - Pattern flags: breakout/reversal/consolidation/volume_spike.
+  - Fusion score from weighted technical + news/sentiment proxy factors.
+- Integrate engine execution as scheduler job after market/news ingestion.
+
+Acceptance target:
+- Signal job runs and persists rows with stable IDs.
+- API diagnostics include latest signal-job run summary.
+- Tests validate deterministic `signal_id`, scoring output shape, and persistence path.

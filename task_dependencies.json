@@ -230,6 +230,14 @@
         "W15J",
         "W15F"
       ]
+    },
+    {
+      "id": "W15L",
+      "name": "FR5-FR8 Signal Quality Calibration",
+      "depends_on": [
+        "W15K",
+        "W15G"
+      ]
     }
   ]
 }

@@ -677,3 +677,29 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Add tests and run service suite.
 - Risks and open questions:
   - Sector inference is baseline taxonomy and may need periodic refinement as F&O universe evolves.
+
+### Current Slice: W15L FR5-FR8 Signal Calibration
+- Problem statement:
+  - FR5-FR8 baseline signal engine is operational but fused scoring remains coarse and under-calibrated for trend/volatility context.
+- Constraints and assumptions:
+  - Preserve deterministic output and stable signal IDs for a fixed market snapshot.
+  - Keep implementation explainable (no black-box model in this slice).
+- Design alternatives considered:
+  1. Keep current binary-flag scoring: rejected (insufficient ranking quality).
+  2. Replace with ML model now: rejected (premature complexity for this recovery phase).
+  3. Add deterministic trend/volatility features with calibrated weighting: chosen.
+- Chosen architecture:
+  - Extend feature extraction with:
+    - normalized trend strength from rolling closes,
+    - volatility regime from range/ATR-like proxy.
+  - Rework fused-score function to combine existing flags and new calibration features.
+  - Persist new features in `features_json`.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/core/signals.py`
+  - `apps/service/tests/test_signals.py`
+- Delivery plan:
+  - Add derived metrics + calibrated scoring.
+  - Update tests for feature presence and score bounds/determinism.
+  - Validate full service suite.
+- Risks and open questions:
+  - Weight choices are still heuristic and require future outcome-based tuning.

@@ -622,3 +622,22 @@ Acceptance target:
 - Ingestion requests a wider deterministic universe even when dynamic discovery is partial.
 - Instrument specs include sector metadata when inferable.
 - Tests validate merged-universe behavior and sector persistence paths.
+
+## 23. W15L FR5-FR8 Signal Quality Calibration (March 2026)
+Objective:
+- Improve FR5-FR8 signal-quality foundations by calibrating fused-score inputs beyond binary flags.
+
+Design:
+- Add trend-strength and volatility-regime features derived from recent bar history.
+- Keep scoring deterministic and bounded in `[0, 1]`.
+- Re-balance fused-score weights to combine:
+  - technical event flags,
+  - sentiment proxy,
+  - trend strength,
+  - volatility adjustment.
+- Persist the additional features in `features_json` for downstream auditability.
+
+Acceptance target:
+- Signal output remains deterministic across identical input snapshots.
+- New calibrated features are persisted and test-covered.
+- Suite stays green.

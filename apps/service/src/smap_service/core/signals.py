@@ -55,6 +55,12 @@ def compute_signals_from_store(store: SQLiteMarketDataStore) -> list[SignalRecor
         consolidation = ((max(tail) - min(tail)) / closes[-1]) < 0.01 if closes[-1] else False
         avg_volume = (sum(volumes[:-1]) / max(1, len(volumes) - 1)) if len(volumes) > 1 else volumes[-1]
         volume_spike = volumes[-1] > (avg_volume * 1.8 if avg_volume else volumes[-1] + 1)
+        trend_strength = _trend_strength(closes[-8:] if len(closes) >= 8 else closes)
+        volatility_regime, volatility_adjustment = _volatility_profile(
+            highs=highs[-8:] if len(highs) >= 8 else highs,
+            lows=lows[-8:] if len(lows) >= 8 else lows,
+            closes=closes[-8:] if len(closes) >= 8 else closes,
+        )
 
         symbol_news = news_by_symbol.get(symbol, [])
         sentiment_score = _sentiment_proxy(symbol_news)
@@ -64,6 +70,8 @@ def compute_signals_from_store(store: SQLiteMarketDataStore) -> list[SignalRecor
             consolidation=consolidation,
             volume_spike=volume_spike,
             sentiment_score=sentiment_score,
+            trend_strength=trend_strength,
+            volatility_adjustment=volatility_adjustment,
         )
         features = {
             "support": support,
@@ -73,6 +81,9 @@ def compute_signals_from_store(store: SQLiteMarketDataStore) -> list[SignalRecor
             "consolidation": consolidation,
             "volume_spike": volume_spike,
             "sentiment_score": sentiment_score,
+            "trend_strength": trend_strength,
+            "volatility_regime": volatility_regime,
+            "volatility_adjustment": volatility_adjustment,
             "news_item_count": len(symbol_news),
         }
         signal_id = _stable_signal_id(symbol=symbol, timeframe="1m", as_of=str(latest["as_of"]), features=features)
@@ -129,12 +140,42 @@ def _fused_score(
     consolidation: bool,
     volume_spike: bool,
     sentiment_score: float,
+    trend_strength: float,
+    volatility_adjustment: float,
 ) -> float:
+    trend_component = (max(-1.0, min(1.0, trend_strength)) + 1.0) / 2.0
     raw = (
-        (0.35 if breakout else 0.0)
-        + (0.2 if reversal else 0.0)
-        + (0.15 if consolidation else 0.0)
-        + (0.2 if volume_spike else 0.0)
+        (0.25 if breakout else 0.0)
+        + (0.15 if reversal else 0.0)
+        + (0.10 if consolidation else 0.0)
+        + (0.15 if volume_spike else 0.0)
         + (0.1 * sentiment_score)
+        + (0.2 * trend_component)
+        + volatility_adjustment
     )
     return round(max(0.0, min(1.0, raw)), 4)
+
+
+def _trend_strength(closes: list[float]) -> float:
+    if len(closes) < 2:
+        return 0.0
+    start = closes[0]
+    end = closes[-1]
+    denom = abs(start) if abs(start) > 1 else 1.0
+    value = (end - start) / denom
+    return round(max(-1.0, min(1.0, value)), 4)
+
+
+def _volatility_profile(highs: list[float], lows: list[float], closes: list[float]) -> tuple[str, float]:
+    if not highs or not lows or not closes:
+        return "unknown", 0.0
+    ranges = []
+    for high, low, close in zip(highs, lows, closes):
+        base = close if close else 1.0
+        ranges.append((high - low) / base)
+    avg_range = sum(ranges) / len(ranges)
+    if avg_range <= 0.006:
+        return "low", 0.1
+    if avg_range <= 0.015:
+        return "medium", 0.05
+    return "high", -0.05

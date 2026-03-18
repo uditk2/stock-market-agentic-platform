@@ -466,3 +466,20 @@
 - Guarantee broader deterministic ingestion universe via dynamic-plus-curated merge.
 - Persist sector metadata with instrument specs.
 - Improve ingestion attribution for coverage observability.
+
+## Iteration 59 (W15L FR5-FR8 Calibration Draft)
+1. Add trend-strength and volatility-regime feature extraction in signal engine.
+2. Recalibrate fused-score weighting using both binary and continuous factors.
+3. Persist additional calibration features in signal payload.
+4. Add tests for determinism, bounds, and feature presence.
+
+## Iteration 60 (W15L FR5-FR8 Calibration Refined)
+1. Keep scoring deterministic for identical input snapshots.
+2. Keep score clamped and stable in `[0, 1]`.
+3. Keep formulas explainable and bounded (no opaque model in this slice).
+4. Preserve scheduler/API compatibility.
+
+18. W15L FR5-FR8 Signal Quality Calibration
+- Improve scoring with trend/volatility-aware features.
+- Persist calibrated feature signals.
+- Keep deterministic and auditable scoring behavior.

@@ -1,3 +1,5 @@
+import json
+
 from smap_service.core.interfaces import MarketBar, NewsItem
 from smap_service.core.signals import compute_signals_from_store
 from smap_service.db.market_data import SQLiteMarketDataStore
@@ -37,4 +39,11 @@ def test_signal_engine_produces_stable_ids_and_persists(tmp_path) -> None:
     assert first
     assert second
     assert first[0].signal_id == second[0].signal_id
+    features = json.loads(first[0].features_json)
+    assert "trend_strength" in features
+    assert "volatility_regime" in features
+    assert "volatility_adjustment" in features
+    assert -1.0 <= float(features["trend_strength"]) <= 1.0
+    assert first[0].fused_score >= 0.0
+    assert first[0].fused_score <= 1.0
     assert store.save_signals(first) == len(first)

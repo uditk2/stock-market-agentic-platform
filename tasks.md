@@ -448,3 +448,21 @@
 - Persist per-symbol futures metadata (lot size + expiry).
 - Apply metadata-aware lifecycle P&L and cutoff evaluation.
 - Preserve fallback closure logic for symbols without metadata.
+
+## Iteration 57 (W15K FR1-FR4 Completeness Draft)
+1. Add curated futures symbol catalog and sector inference helper.
+2. Merge dynamic-discovered symbols with curated universe for deterministic broad coverage.
+3. Extend instrument spec persistence with sector field and compatibility migration.
+4. Persist inferred sector metadata during ingestion.
+5. Add tests for merged-universe and sector persistence behavior.
+
+## Iteration 58 (W15K FR1-FR4 Completeness Refined)
+1. Keep merge logic idempotent and stable across runs.
+2. Keep dynamic-discovery path preferred while guaranteeing curated baseline inclusion.
+3. Keep DB change backward-compatible for existing runtime files.
+4. Keep sector taxonomy explicitly documented as baseline and easily extendable.
+
+17. W15K FR1-FR4 Universe and Sector Mapping Refinement
+- Guarantee broader deterministic ingestion universe via dynamic-plus-curated merge.
+- Persist sector metadata with instrument specs.
+- Improve ingestion attribution for coverage observability.

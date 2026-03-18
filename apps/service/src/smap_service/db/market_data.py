@@ -203,12 +203,14 @@ class SQLiteMarketDataStore:
                     continue
                 lot_size = row.get("lot_size")
                 expiry_date = row.get("expiry_date")
+                sector = row.get("sector")
                 source = str(row.get("source", "unknown")).strip() or "unknown"
                 payload.append(
                     (
                         symbol,
                         float(lot_size) if lot_size is not None else None,
                         str(expiry_date) if expiry_date else None,
+                        str(sector) if sector else None,
                         source,
                         now_utc().isoformat(),
                     )
@@ -217,11 +219,12 @@ class SQLiteMarketDataStore:
                 return 0
             conn.executemany(
                 """
-                INSERT INTO instrument_specs (symbol, lot_size, expiry_date, source, updated_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO instrument_specs (symbol, lot_size, expiry_date, sector, source, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(symbol) DO UPDATE SET
                     lot_size = excluded.lot_size,
                     expiry_date = excluded.expiry_date,
+                    sector = excluded.sector,
                     source = excluded.source,
                     updated_at = excluded.updated_at
                 """,
@@ -237,7 +240,7 @@ class SQLiteMarketDataStore:
         with self._lock, self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT symbol, lot_size, expiry_date, source, updated_at
+                SELECT symbol, lot_size, expiry_date, sector, source, updated_at
                 FROM instrument_specs
                 WHERE symbol = ?
                 """,
@@ -249,8 +252,9 @@ class SQLiteMarketDataStore:
             "symbol": row[0],
             "lot_size": row[1],
             "expiry_date": row[2],
-            "source": row[3],
-            "updated_at": row[4],
+            "sector": row[3],
+            "source": row[4],
+            "updated_at": row[5],
         }
 
     def list_recent_signals(self, limit: int = 200) -> list[dict[str, object]]:
@@ -624,11 +628,13 @@ class SQLiteMarketDataStore:
                     symbol TEXT PRIMARY KEY,
                     lot_size REAL,
                     expiry_date TEXT,
+                    sector TEXT,
                     source TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 )
                 """
             )
+            self._ensure_column(conn, "instrument_specs", "sector", "TEXT")
             self._ensure_column(conn, "recommendations", "close_reason", "TEXT")
             self._ensure_column(conn, "recommendations", "close_price", "REAL")
             self._ensure_column(conn, "recommendations", "realized_pnl_per_lot", "REAL")

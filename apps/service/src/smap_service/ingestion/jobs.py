@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from smap_service.core.symbol_catalog import infer_sector, merged_symbol_universe
 from smap_service.core.interfaces import MarketFeedClient, NewsItem
 from smap_service.core.registry import PluginRegistry
 from smap_service.core.signals import compute_signals_from_store
@@ -47,7 +48,7 @@ def ingest_market_bars(
         connector=market_client.name,
         attribution={
             "symbols_requested": len(symbols),
-            "symbols_source": "dynamic_or_fallback",
+            "symbols_source": "dynamic_plus_curated",
             "instrument_specs_persisted": specs_persisted,
         },
     )
@@ -115,16 +116,15 @@ def compute_signals(market_data_store: SQLiteMarketDataStore) -> JobResult:
 
 
 def _resolve_symbol_universe(market_client: MarketFeedClient) -> list[str]:
-    default = ["NIFTY-FUT", "BANKNIFTY-FUT", "RELIANCE-FUT", "TCS-FUT"]
+    dynamic: list[str] = []
     resolver = getattr(market_client, "list_active_stock_futures_symbols", None)
     if callable(resolver):
         try:
-            symbols = resolver()
-            if symbols:
-                return symbols
+            symbols = resolver() or []
+            dynamic = [str(item) for item in symbols]
         except Exception as exc:  # pragma: no cover - runtime wrapper
             logger.warning("symbol universe resolver failed: %s", exc)
-    return default
+    return merged_symbol_universe(dynamic_symbols=dynamic)
 
 
 def _resolve_instrument_specs(market_client: MarketFeedClient, symbols: list[str]) -> list[dict[str, object]]:
@@ -146,6 +146,7 @@ def _resolve_instrument_specs(market_client: MarketFeedClient, symbols: list[str
                     "symbol": symbol,
                     "lot_size": spec.get("lot_size"),
                     "expiry_date": spec.get("expiry_date"),
+                    "sector": spec.get("sector") or infer_sector(symbol),
                     "source": spec.get("source", getattr(market_client, "name", "market_client")),
                 }
             )

@@ -28,3 +28,26 @@ def test_market_data_store_persists_market_bars_and_news(tmp_path) -> None:
     ]
     assert store.save_market_bars(bars) == 1
     assert store.save_news_items(items, channel="nse_announcements") == 1
+
+
+def test_market_data_store_persists_instrument_specs_with_sector(tmp_path) -> None:
+    store = SQLiteMarketDataStore(db_path=tmp_path / "runtime.sqlite3")
+    assert (
+        store.save_instrument_specs(
+            [
+                {
+                    "symbol": "RELIANCE-FUT",
+                    "lot_size": 250,
+                    "expiry_date": "2026-03-27",
+                    "sector": "energy",
+                    "source": "test",
+                }
+            ]
+        )
+        == 1
+    )
+    row = store.get_instrument_spec("RELIANCE-FUT")
+    assert row is not None
+    assert row["lot_size"] == 250.0
+    assert row["expiry_date"] == "2026-03-27"
+    assert row["sector"] == "energy"

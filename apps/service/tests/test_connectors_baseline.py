@@ -45,7 +45,7 @@ def test_kotak_client_without_selected_credentials_returns_empty(tmp_path) -> No
 
 def test_ingest_market_bars_counts_records() -> None:
     result = ingest_market_bars(_DummyMarketClient())
-    assert result.records_processed == 4
+    assert result.records_processed >= 20
 
 
 def test_kotak_verify_credentials_reports_upstream_timeout(tmp_path, monkeypatch) -> None:

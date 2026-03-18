@@ -647,3 +647,33 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Add focused tests and run service suite.
 - Risks and open questions:
   - Kotak CSV schema may vary by account/feed; parser must remain tolerant and fallback-safe.
+
+### Current Slice: W15K FR1-FR4 Completeness (Universe + Sector Mapping)
+- Problem statement:
+  - FR1-FR4 still lack full ingestion-universe guarantees and richer symbol/sector mapping quality in the persisted market metadata.
+- Constraints and assumptions:
+  - Keep ingestion deterministic when Kotak dynamic discovery is partially available or unavailable.
+  - Avoid regressions in existing ingestion job contracts.
+- Design alternatives considered:
+  1. Keep dynamic-only discovery from connector: rejected (coverage can shrink during upstream/API instability).
+  2. Keep static fallback-only list: rejected (misses discoverable futures breadth).
+  3. Merge dynamic discovery with curated baseline and persist inferred sector metadata: chosen.
+- Chosen architecture:
+  - Add shared curated futures catalog with broad baseline stock-futures set and sector inference helpers.
+  - Merge symbol universe as: `dynamic ∪ curated`, with normalized uppercase deterministic ordering.
+  - Extend instrument spec persistence to include `sector`.
+  - Enrich ingestion attribution with symbol-count quality metadata.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/core/symbol_catalog.py` (new)
+  - `apps/service/src/smap_service/ingestion/jobs.py`
+  - `apps/service/src/smap_service/db/market_data.py`
+  - `apps/service/src/smap_service/core/recommendations.py` (spec read compatibility)
+  - `apps/service/tests/test_market_data_store.py`
+  - `apps/service/tests/test_connectors_baseline.py`
+- Delivery plan:
+  - Add catalog + inference helpers.
+  - Add merged-universe resolver behavior.
+  - Add sector persistence/migration support.
+  - Add tests and run service suite.
+- Risks and open questions:
+  - Sector inference is baseline taxonomy and may need periodic refinement as F&O universe evolves.

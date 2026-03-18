@@ -607,3 +607,18 @@ Acceptance target:
 - Lifecycle P&L uses persisted lot size when available (fallback remains deterministic).
 - Lifecycle cutoff uses expiry metadata when available.
 - Tests cover lot-size-aware P&L and expiry-aware cutoff behavior.
+
+## 22. W15K FR1-FR4 Completeness: Universe Coverage and Sector Mapping (March 2026)
+Objective:
+- Improve FR1-FR4 ingestion completeness by tightening symbol-universe guarantees and adding richer sector mapping metadata.
+
+Design:
+- Introduce a curated futures catalog module for baseline symbol coverage and sector inference.
+- Update symbol-universe resolution to merge dynamic Kotak discovery with curated defaults (deduplicated, deterministic order).
+- Extend instrument spec persistence to include sector metadata for downstream analytics and diagnostics.
+- Preserve fallback safety when dynamic connector discovery is unavailable.
+
+Acceptance target:
+- Ingestion requests a wider deterministic universe even when dynamic discovery is partial.
+- Instrument specs include sector metadata when inferable.
+- Tests validate merged-universe behavior and sector persistence paths.

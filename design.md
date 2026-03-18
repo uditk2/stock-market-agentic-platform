@@ -673,3 +673,20 @@ Acceptance target:
 - Lifecycle cutoff can operate with exchange-like monthly expiry semantics even without explicit expiry field.
 - Explicit expiry metadata behavior remains unchanged.
 - Tests cover inferred cutoff elapsed/not-elapsed scenarios.
+
+## 26. W15O FR1-FR4 Completeness Closure Pass (Priority #1)
+Objective:
+- Close the remaining FR1-FR4 completeness gap by enforcing deterministic minimum-universe guarantees and observability of coverage quality.
+
+Design:
+- Expand curated baseline to include required macro/index futures alongside stock futures.
+- Add explicit coverage attribution metrics in ingestion results:
+  - dynamic symbol count,
+  - curated baseline count,
+  - merged request count.
+- Keep merged-universe resolution deterministic and deduplicated.
+
+Acceptance target:
+- Ingestion always includes required baseline futures regardless of dynamic discovery availability.
+- Coverage attribution metrics are present for diagnostics/audit.
+- Tests cover guaranteed inclusion behavior and attribution shape.

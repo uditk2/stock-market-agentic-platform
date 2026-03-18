@@ -516,3 +516,19 @@
 - Add monthly-expiry cutoff inference for missing expiry metadata.
 - Keep lifecycle close behavior deterministic and auditable.
 - Preserve explicit metadata precedence.
+
+## Iteration 65 (W15O FR1-FR4 Closure Draft)
+1. Expand curated baseline to include required macro/index futures.
+2. Add ingestion coverage attribution metrics for dynamic/curated/merged counts.
+3. Add tests for guaranteed baseline inclusion and attribution payload.
+
+## Iteration 66 (W15O FR1-FR4 Closure Refined)
+1. Keep merged-universe output deterministic and deduplicated.
+2. Preserve existing ingestion interfaces while enriching attribution metadata.
+3. Validate full service suite after changes.
+4. Update issue #40 closure notes when acceptance is met.
+
+21. W15O FR1-FR4 Completeness Closure Pass
+- Enforce required baseline futures inclusion.
+- Improve ingestion coverage observability.
+- Close issue #40 when closure criteria are satisfied.

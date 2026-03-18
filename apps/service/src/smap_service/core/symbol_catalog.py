@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+REQUIRED_BASELINE_FUTURES: tuple[str, ...] = (
+    "NIFTY-FUT",
+    "BANKNIFTY-FUT",
+)
+
 DEFAULT_STOCK_FUTURES_SYMBOLS: tuple[str, ...] = (
     "RELIANCE-FUT",
     "TCS-FUT",
@@ -62,6 +67,7 @@ def infer_sector(symbol: str) -> str | None:
 
 
 def merged_symbol_universe(dynamic_symbols: list[str]) -> list[str]:
-    merged: set[str] = {normalize_symbol(item) for item in DEFAULT_STOCK_FUTURES_SYMBOLS}
+    merged: set[str] = {normalize_symbol(item) for item in REQUIRED_BASELINE_FUTURES}
+    merged.update(normalize_symbol(item) for item in DEFAULT_STOCK_FUTURES_SYMBOLS)
     merged.update(normalize_symbol(item) for item in dynamic_symbols if item and str(item).strip())
     return sorted(symbol for symbol in merged if symbol.endswith("-FUT"))

@@ -46,6 +46,9 @@ def test_kotak_client_without_selected_credentials_returns_empty(tmp_path) -> No
 def test_ingest_market_bars_counts_records() -> None:
     result = ingest_market_bars(_DummyMarketClient())
     assert result.records_processed >= 20
+    assert result.attribution is not None
+    assert result.attribution["symbols_dynamic_count"] == 0
+    assert result.attribution["symbols_merged_count"] == result.records_processed
 
 
 def test_kotak_verify_credentials_reports_upstream_timeout(tmp_path, monkeypatch) -> None:

@@ -753,3 +753,29 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Validate full service suite.
 - Risks and open questions:
   - Last-Thursday fallback is a practical proxy; holiday-adjusted expiry handling remains a future enhancement.
+
+### Current Slice: W15O FR1-FR4 Completeness Closure (Priority #1)
+- Problem statement:
+  - FR1-FR4 has major foundations and refinements, but completion closure still needs explicit minimum-universe guarantees and richer coverage attribution.
+- Constraints and assumptions:
+  - Keep deterministic merged universe behavior.
+  - Maintain compatibility with existing ingestion/scheduler interfaces.
+- Design alternatives considered:
+  1. Leave current merged-universe logic unchanged: rejected (closure criteria remains implicit).
+  2. Dynamic-discovery hard dependency: rejected (fragile during upstream outages).
+  3. Add explicit required baseline futures + coverage attribution metrics: chosen.
+- Chosen architecture:
+  - Extend curated baseline set with required macro/index futures.
+  - Enhance ingestion attribution payload with dynamic/curated/merged counts.
+  - Keep deduplicated sorted merged output.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/core/symbol_catalog.py`
+  - `apps/service/src/smap_service/ingestion/jobs.py`
+  - `apps/service/tests/test_symbol_catalog.py`
+  - `apps/service/tests/test_connectors_baseline.py`
+- Delivery plan:
+  - Patch baseline and attribution.
+  - Add targeted tests for baseline guarantee and attribution shape.
+  - Validate full service suite.
+- Risks and open questions:
+  - Universe breadth still benefits from future exchange-driven contract catalog ingestion.

@@ -6,6 +6,8 @@ def test_merged_symbol_universe_includes_curated_and_dynamic_symbols() -> None:
     assert "RELIANCE-FUT" in symbols
     assert "TCS-FUT" in symbols
     assert "ZOMATO-FUT" in symbols
+    assert "NIFTY-FUT" in symbols
+    assert "BANKNIFTY-FUT" in symbols
     assert symbols == sorted(symbols)
 
 

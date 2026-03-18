@@ -4,7 +4,12 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from smap_service.core.symbol_catalog import infer_sector, merged_symbol_universe
+from smap_service.core.symbol_catalog import (
+    DEFAULT_STOCK_FUTURES_SYMBOLS,
+    REQUIRED_BASELINE_FUTURES,
+    infer_sector,
+    merged_symbol_universe,
+)
 from smap_service.core.interfaces import MarketFeedClient, NewsItem
 from smap_service.core.registry import PluginRegistry
 from smap_service.core.signals import compute_signals_from_store
@@ -27,7 +32,8 @@ def ingest_market_bars(
     market_client: MarketFeedClient,
     market_data_store: SQLiteMarketDataStore | None = None,
 ) -> JobResult:
-    symbols = _resolve_symbol_universe(market_client)
+    dynamic_symbols = _resolve_dynamic_symbol_universe(market_client)
+    symbols = merged_symbol_universe(dynamic_symbols=dynamic_symbols)
     bars = market_client.fetch_latest_bars(symbols=symbols)
     persisted = len(bars)
     specs_persisted = 0
@@ -49,6 +55,9 @@ def ingest_market_bars(
         attribution={
             "symbols_requested": len(symbols),
             "symbols_source": "dynamic_plus_curated",
+            "symbols_dynamic_count": len(dynamic_symbols),
+            "symbols_curated_count": len(DEFAULT_STOCK_FUTURES_SYMBOLS) + len(REQUIRED_BASELINE_FUTURES),
+            "symbols_merged_count": len(symbols),
             "instrument_specs_persisted": specs_persisted,
         },
     )
@@ -116,6 +125,10 @@ def compute_signals(market_data_store: SQLiteMarketDataStore) -> JobResult:
 
 
 def _resolve_symbol_universe(market_client: MarketFeedClient) -> list[str]:
+    return merged_symbol_universe(dynamic_symbols=_resolve_dynamic_symbol_universe(market_client))
+
+
+def _resolve_dynamic_symbol_universe(market_client: MarketFeedClient) -> list[str]:
     dynamic: list[str] = []
     resolver = getattr(market_client, "list_active_stock_futures_symbols", None)
     if callable(resolver):
@@ -124,7 +137,7 @@ def _resolve_symbol_universe(market_client: MarketFeedClient) -> list[str]:
             dynamic = [str(item) for item in symbols]
         except Exception as exc:  # pragma: no cover - runtime wrapper
             logger.warning("symbol universe resolver failed: %s", exc)
-    return merged_symbol_universe(dynamic_symbols=dynamic)
+    return dynamic
 
 
 def _resolve_instrument_specs(market_client: MarketFeedClient, symbols: list[str]) -> list[dict[str, object]]:

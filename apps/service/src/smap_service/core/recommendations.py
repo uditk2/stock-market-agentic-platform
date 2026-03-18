@@ -84,17 +84,24 @@ class RecommendationService:
             confidence = float(row.get("fused_score", 0.0))
             symbol = str(row.get("symbol", "UNKNOWN"))
             signal_id = str(row.get("signal_id", ""))
+            features = row.get("features", {}) if isinstance(row.get("features"), dict) else {}
             direction = "long" if confidence >= 0.5 else "short"
             support = float(row.get("support", 0.0))
             resistance = float(row.get("resistance", 0.0))
             entry_price = resistance if direction == "long" else support
             stop_loss = support if direction == "long" else resistance
             spread = abs(resistance - support)
-            target_1 = entry_price + spread if direction == "long" else entry_price - spread
-            target_2 = entry_price + (spread * 1.5) if direction == "long" else entry_price - (spread * 1.5)
+            target_1 = entry_price + (spread * 1.35) if direction == "long" else entry_price - (spread * 1.35)
+            target_2 = entry_price + (spread * 2.0) if direction == "long" else entry_price - (spread * 2.0)
+            risk_per_unit = abs(entry_price - stop_loss) if abs(entry_price - stop_loss) > 0 else 0.0001
+            reward_per_unit = abs(target_1 - entry_price)
+            risk_reward_ratio = reward_per_unit / risk_per_unit
+            spread_ratio = spread / entry_price if entry_price else 0.0
+            volatility_regime = str(features.get("volatility_regime", "medium"))
             rationale = (
                 f"Signal fusion={confidence:.2f}; breakout={row.get('breakout')}; "
-                f"volume_spike={row.get('volume_spike')}; sentiment={row.get('sentiment_score')}."
+                f"volume_spike={row.get('volume_spike')}; sentiment={row.get('sentiment_score')}; "
+                f"rr={risk_reward_ratio:.2f}; volatility={volatility_regime}."
             )
             guardrail = self._guardrail_check(
                 confidence=confidence,
@@ -102,6 +109,9 @@ class RecommendationService:
                 stop_loss=stop_loss,
                 target_1=target_1,
                 rationale=rationale,
+                risk_reward_ratio=risk_reward_ratio,
+                spread_ratio=spread_ratio,
+                volatility_regime=volatility_regime,
             )
             recommendation_id = _stable_recommendation_id(symbol=symbol, signal_id=signal_id, strategy_id=strategy_artifact_id)
             generated.append(
@@ -200,13 +210,21 @@ class RecommendationService:
         stop_loss: float,
         target_1: float,
         rationale: str,
+        risk_reward_ratio: float,
+        spread_ratio: float,
+        volatility_regime: str,
     ) -> dict[str, object]:
-        if confidence < 0.25:
+        confidence_threshold = 0.35 if volatility_regime == "high" else 0.25
+        if confidence < confidence_threshold:
             return {"ok": False, "reason": "confidence_below_threshold"}
         if not rationale.strip():
             return {"ok": False, "reason": "empty_rationale"}
         if entry_price <= 0 or stop_loss <= 0 or target_1 <= 0:
             return {"ok": False, "reason": "invalid_numeric_fields"}
+        if spread_ratio < 0.002:
+            return {"ok": False, "reason": "spread_too_narrow"}
+        if risk_reward_ratio < 1.1:
+            return {"ok": False, "reason": "risk_reward_below_threshold"}
         return {"ok": True}
 
 

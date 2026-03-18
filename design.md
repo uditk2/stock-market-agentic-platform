@@ -641,3 +641,20 @@ Acceptance target:
 - Signal output remains deterministic across identical input snapshots.
 - New calibrated features are persisted and test-covered.
 - Suite stays green.
+
+## 24. W15M FR9-FR12 Recommendation Publish Quality Calibration (March 2026)
+Objective:
+- Improve FR9-FR12 recommendation publish quality by tightening guardrails and risk-reward construction.
+
+Design:
+- Rework target construction to improve baseline risk-reward ratio.
+- Extend guardrail checks with explicit quality thresholds:
+  - minimum confidence (volatility-aware),
+  - minimum risk-reward ratio,
+  - non-trivial spread sanity checks.
+- Keep suppression reasons explicit and persisted for diagnostics/audit.
+
+Acceptance target:
+- Recommendations failing quality thresholds are persisted as `suppressed` with clear reasons.
+- Published recommendations satisfy calibrated guardrails.
+- Tests cover new publish/suppress logic and suite remains green.

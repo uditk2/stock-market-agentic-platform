@@ -179,3 +179,33 @@ def test_recommendation_lifecycle_uses_expiry_cutoff_when_available(tmp_path) ->
     detail = service.get(rec.recommendation_id)
     assert detail is not None
     assert detail.close_reason == "cutoff_trigger"
+
+
+def test_recommendation_guardrail_rejects_low_risk_reward() -> None:
+    verdict = RecommendationService._guardrail_check(
+        confidence=0.7,
+        entry_price=100.0,
+        stop_loss=99.0,
+        target_1=100.5,
+        rationale="Valid rationale",
+        risk_reward_ratio=0.5,
+        spread_ratio=0.01,
+        volatility_regime="medium",
+    )
+    assert verdict["ok"] is False
+    assert verdict["reason"] == "risk_reward_below_threshold"
+
+
+def test_recommendation_guardrail_uses_higher_confidence_threshold_for_high_volatility() -> None:
+    verdict = RecommendationService._guardrail_check(
+        confidence=0.3,
+        entry_price=100.0,
+        stop_loss=98.0,
+        target_1=103.0,
+        rationale="Valid rationale",
+        risk_reward_ratio=1.5,
+        spread_ratio=0.02,
+        volatility_regime="high",
+    )
+    assert verdict["ok"] is False
+    assert verdict["reason"] == "confidence_below_threshold"

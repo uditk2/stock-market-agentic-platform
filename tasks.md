@@ -483,3 +483,20 @@
 - Improve scoring with trend/volatility-aware features.
 - Persist calibrated feature signals.
 - Keep deterministic and auditable scoring behavior.
+
+## Iteration 61 (W15M FR9-FR12 Publish Calibration Draft)
+1. Rework recommendation target construction for improved baseline risk-reward.
+2. Extend guardrails with minimum risk-reward and spread sanity checks.
+3. Add volatility-aware confidence threshold handling.
+4. Persist suppression reasons as-is and add tests for calibrated publish/suppress outcomes.
+
+## Iteration 62 (W15M FR9-FR12 Publish Calibration Refined)
+1. Keep recommendation payload shape backward-compatible.
+2. Keep guardrail decisions deterministic and explicit.
+3. Avoid over-suppression on healthy baseline signal data.
+4. Validate full service suite after calibration changes.
+
+19. W15M FR9-FR12 Recommendation Publish Quality Calibration
+- Improve recommendation publish quality with calibrated guardrails.
+- Improve risk-reward target construction.
+- Keep suppression reasons explicit for diagnostics and audit.

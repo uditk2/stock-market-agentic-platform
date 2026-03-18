@@ -703,3 +703,27 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Validate full service suite.
 - Risks and open questions:
   - Weight choices are still heuristic and require future outcome-based tuning.
+
+### Current Slice: W15M FR9-FR12 Recommendation Publish Calibration
+- Problem statement:
+  - FR9-FR12 recommendation contract exists, but publish logic is still lenient and can pass weak risk-reward setups.
+- Constraints and assumptions:
+  - Preserve existing API contract fields.
+  - Keep suppression reasons explicit for auditability.
+- Design alternatives considered:
+  1. Keep current minimal guardrails: rejected.
+  2. Introduce full portfolio optimizer: rejected (out of scope for recovery phase).
+  3. Add calibrated publish thresholds and improved target construction: chosen.
+- Chosen architecture:
+  - Improve target-distance construction to increase baseline reward relative to risk.
+  - Extend guardrails with minimum risk-reward and spread sanity checks.
+  - Apply volatility-aware confidence thresholding using signal features where available.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/core/recommendations.py`
+  - `apps/service/tests/test_recommendations.py`
+- Delivery plan:
+  - Patch recommendation generation + guardrail logic.
+  - Add tests for suppression reasons and publish pass path.
+  - Validate full service suite.
+- Risks and open questions:
+  - Thresholds remain heuristic; outcome-driven calibration is a follow-up track.

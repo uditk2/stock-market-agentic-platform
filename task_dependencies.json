@@ -238,6 +238,14 @@
         "W15K",
         "W15G"
       ]
+    },
+    {
+      "id": "W15M",
+      "name": "FR9-FR12 Recommendation Publish Quality Calibration",
+      "depends_on": [
+        "W15L",
+        "W15H"
+      ]
     }
   ]
 }

@@ -149,6 +149,23 @@ class RecommendationService:
             return None
         return self._to_dataclass(row)
 
+    def metrics(self) -> dict[str, object]:
+        rows = self._store.list_recommendations(query=None, include_suppressed=True)
+        status_counts = {"published": 0, "suppressed": 0, "closed": 0}
+        suppress_reasons: dict[str, int] = {}
+        for row in rows:
+            status = str(row.get("status", "published"))
+            status_counts[status] = status_counts.get(status, 0) + 1
+            reason = row.get("suppress_reason")
+            if reason:
+                key = str(reason)
+                suppress_reasons[key] = suppress_reasons.get(key, 0) + 1
+        return {
+            "total": len(rows),
+            "status_counts": status_counts,
+            "suppression_reasons": suppress_reasons,
+        }
+
     @staticmethod
     def to_dict(item: Recommendation) -> dict[str, object]:
         return {

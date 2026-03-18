@@ -221,6 +221,10 @@ def build_router(runtime: AppRuntime) -> APIRouter:
             ],
         }
 
+    @router.get("/recommendations/metrics")
+    def recommendation_metrics() -> dict[str, Any]:
+        return runtime.recommendations.metrics()
+
     @router.get("/recommendations/{recommendation_id}")
     def recommendation_detail(recommendation_id: str) -> dict[str, Any]:
         item = runtime.recommendations.get(recommendation_id)

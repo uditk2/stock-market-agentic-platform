@@ -704,3 +704,19 @@ Acceptance target:
 - API exposes recent persisted signals with calibrated feature payload.
 - Tests validate route shape and response behavior.
 - Issue #41 closure criteria is met.
+
+## 28. W15Q FR9-FR12 Closure Pass (Priority #3)
+Objective:
+- Close issue #42 by exposing recommendation quality/suppression metrics for publish-calibrated workflows.
+
+Design:
+- Add recommendation metrics route returning:
+  - published/suppressed/closed counts,
+  - suppression reason distribution.
+- Build metrics from persisted recommendation rows (including suppressed).
+- Keep payload compact and auditable.
+
+Acceptance target:
+- API surfaces recommendation quality metrics and suppression diagnostics.
+- Tests validate route shape.
+- Issue #42 closure criteria is met.

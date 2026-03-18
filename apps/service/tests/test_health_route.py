@@ -29,6 +29,13 @@ def test_recommendations_and_provider_routes_shape() -> None:
     assert rec_payload["sort"] == "confidence_desc"
     assert isinstance(rec_payload["items"], list)
 
+    rec_metrics = client.get("/recommendations/metrics")
+    assert rec_metrics.status_code == 200
+    metrics_payload = rec_metrics.json()
+    assert "total" in metrics_payload
+    assert "status_counts" in metrics_payload
+    assert "suppression_reasons" in metrics_payload
+
     schema = client.get("/providers/brokers/schema/kotak_neo")
     assert schema.status_code == 200
     assert "access_token" in schema.json()["required_fields"]

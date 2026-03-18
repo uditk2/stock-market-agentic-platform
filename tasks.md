@@ -547,3 +547,19 @@
 22. W15P FR5-FR8 Closure Pass
 - Expose calibrated signals over stable API route.
 - Add route tests and close issue #41.
+
+## Iteration 69 (W15Q FR9-FR12 Closure Draft)
+1. Add recommendation metrics aggregation helper.
+2. Add `/recommendations/metrics` route.
+3. Add route shape tests and validate full service suite.
+4. Close issue #42.
+
+## Iteration 70 (W15Q FR9-FR12 Closure Refined)
+1. Keep aggregation deterministic and derived from persisted rows.
+2. Include suppression reason distribution for auditability.
+3. Keep route payload compact and backward-compatible with existing routes.
+4. Update issue #42 closure notes once validated.
+
+23. W15Q FR9-FR12 Closure Pass
+- Expose recommendation quality and suppression metrics.
+- Add route tests and close issue #42.

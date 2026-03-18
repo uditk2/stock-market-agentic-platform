@@ -802,3 +802,27 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Validate full service suite and close #41.
 - Risks and open questions:
   - Outcome-based ranking quality tuning remains separate from route exposure completion.
+
+### Current Slice: W15Q FR9-FR12 Closure (Priority #3)
+- Problem statement:
+  - Recommendation generation and publish guardrails are calibrated, but issue #42 still lacks explicit quality-metrics exposure for operational monitoring.
+- Constraints and assumptions:
+  - Reuse persisted recommendation rows; avoid schema changes in closure pass.
+  - Keep metrics route deterministic and lightweight.
+- Design alternatives considered:
+  1. Keep diagnostics implicit only: rejected.
+  2. Add full analytics subsystem now: rejected (scope creep).
+  3. Add focused recommendation-metrics route with suppression distribution: chosen.
+- Chosen architecture:
+  - New route computes aggregate counts by status and suppression reason from persisted recommendations.
+  - Route supports quick quality monitoring for publish/suppress calibration outcomes.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/core/recommendations.py`
+  - `apps/service/src/smap_service/api/routes.py`
+  - `apps/service/tests/test_health_route.py`
+- Delivery plan:
+  - Add metrics computation helper.
+  - Add route and tests.
+  - Validate full service suite and close #42.
+- Risks and open questions:
+  - Outcome-driven calibration still needs live/historical performance feedback loops outside this closure slice.

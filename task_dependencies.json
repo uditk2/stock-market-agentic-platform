@@ -270,6 +270,14 @@
         "W15O",
         "W15L"
       ]
+    },
+    {
+      "id": "W15Q",
+      "name": "FR9-FR12 Closure Pass",
+      "depends_on": [
+        "W15P",
+        "W15M"
+      ]
     }
   ]
 }

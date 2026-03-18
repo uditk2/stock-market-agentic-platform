@@ -8,6 +8,7 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime
 from io import StringIO
 from typing import Any
 
@@ -90,6 +91,35 @@ class KotakMarketFeedClient(MarketFeedClient):
             if len(discovered) >= limit:
                 break
         return sorted(discovered)
+
+    def fetch_instrument_specs(self, symbols: list[str]) -> dict[str, dict[str, object]]:
+        selection = self._credentials.get_selection()
+        if selection.provider != "kotak_neo" or not selection.has_credentials:
+            return {}
+        creds = self._credentials.get_credentials("kotak_neo") or {}
+        token = creds.get("access_token")
+        if not token:
+            return {}
+        paths = self._fetch_scrip_master_paths(token=token)
+        futures_csv_url = next((path for path in paths if "nse_fo" in path.lower()), "")
+        if not futures_csv_url:
+            return {}
+        rows = self._fetch_csv_rows(futures_csv_url)
+        output: dict[str, dict[str, object]] = {}
+        for symbol in symbols:
+            row = self._find_row_for_symbol(symbol=symbol, rows=rows)
+            if row is None:
+                continue
+            lot_size = _extract_lot_size(row)
+            expiry_date = _extract_expiry_date(row)
+            if lot_size is None and expiry_date is None:
+                continue
+            output[symbol] = {
+                "lot_size": lot_size,
+                "expiry_date": expiry_date,
+                "source": "kotak_master",
+            }
+        return output
 
     def verify_credentials(self) -> dict[str, Any]:
         selection = self._credentials.get_selection()
@@ -191,8 +221,19 @@ class KotakMarketFeedClient(MarketFeedClient):
 
     @staticmethod
     def _find_token_for_symbol(symbol: str, rows: list[dict[str, str]]) -> str | None:
-        base = symbol.replace("-FUT", "").upper()
+        row = KotakMarketFeedClient._find_row_for_symbol(symbol=symbol, rows=rows)
+        if row is None:
+            return None
         token_keys = ("pSymbol", "instrument_token", "token", "pToken")
+        for key in token_keys:
+            value = row.get(key)
+            if value and str(value).strip():
+                return str(value).strip()
+        return None
+
+    @staticmethod
+    def _find_row_for_symbol(symbol: str, rows: list[dict[str, str]]) -> dict[str, str] | None:
+        base = symbol.replace("-FUT", "").upper()
         label_keys = ("pTrdSymbol", "trading_symbol", "symbol", "pSymbolName")
         for row in rows:
             label = ""
@@ -205,10 +246,7 @@ class KotakMarketFeedClient(MarketFeedClient):
                 continue
             if "FUT" not in label:
                 continue
-            for key in token_keys:
-                value = row.get(key)
-                if value and str(value).strip():
-                    return str(value).strip()
+            return row
         return None
 
     @staticmethod
@@ -256,3 +294,40 @@ def _extract_symbol_root(label: str) -> str:
     if match:
         return match.group(1)
     return ""
+
+
+def _extract_lot_size(row: dict[str, str]) -> float | None:
+    candidate_keys = ("lot_size", "lotsize", "lotSize", "pLotSize", "dLotSize", "qty", "quantity")
+    for key in candidate_keys:
+        value = row.get(key)
+        if not value:
+            continue
+        text = str(value).strip().replace(",", "")
+        try:
+            parsed = float(text)
+        except ValueError:
+            continue
+        if parsed > 0:
+            return parsed
+    return None
+
+
+def _extract_expiry_date(row: dict[str, str]) -> str | None:
+    candidate_keys = ("expiry_date", "expiry", "expiryDate", "pExpiryDate", "expDate")
+    for key in candidate_keys:
+        value = row.get(key)
+        parsed = _parse_date_text(str(value).strip()) if value else None
+        if parsed:
+            return parsed
+    return None
+
+
+def _parse_date_text(raw: str) -> str | None:
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d-%b-%Y", "%d%b%Y", "%d%b%y"):
+        try:
+            return datetime.strptime(raw, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return None

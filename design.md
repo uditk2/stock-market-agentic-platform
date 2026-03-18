@@ -587,3 +587,23 @@ Acceptance target:
 - Lifecycle scheduler job runs and updates recommendation status from `published` to `closed` when trigger conditions match.
 - Closure fields persist and are queryable.
 - Tests cover trigger evaluation and closure persistence behavior.
+
+## 21. W15J FR13-FR15 Precision: Lot Size and Expiry-Aware Cutoff (March 2026)
+Objective:
+- Improve lifecycle correctness for FR13-FR15 by replacing baseline assumptions with:
+  - symbol-aware lot size for P&L,
+  - expiry-aware cutoff timing.
+
+Design:
+- Add instrument specification persistence for futures symbols:
+  - `symbol`, `lot_size`, `expiry_date`, `source`, `updated_at`.
+- Extend Kotak scrip-master parsing to extract lot size and expiry where present.
+- Persist/update specs during ingestion and use them in lifecycle evaluation.
+- Replace fixed 24h cutoff with expiry-aware close:
+  - close when current IST market time is beyond expiry-day cutoff time,
+  - keep 24h fallback only when expiry metadata is unavailable.
+
+Acceptance target:
+- Lifecycle P&L uses persisted lot size when available (fallback remains deterministic).
+- Lifecycle cutoff uses expiry metadata when available.
+- Tests cover lot-size-aware P&L and expiry-aware cutoff behavior.

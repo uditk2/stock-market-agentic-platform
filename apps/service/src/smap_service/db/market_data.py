@@ -192,6 +192,67 @@ class SQLiteMarketDataStore:
             conn.commit()
         return len(signals)
 
+    def save_instrument_specs(self, rows: list[dict[str, object]]) -> int:
+        if not rows:
+            return 0
+        with self._lock, self._connect() as conn:
+            payload = []
+            for row in rows:
+                symbol = str(row.get("symbol", "")).strip().upper()
+                if not symbol:
+                    continue
+                lot_size = row.get("lot_size")
+                expiry_date = row.get("expiry_date")
+                source = str(row.get("source", "unknown")).strip() or "unknown"
+                payload.append(
+                    (
+                        symbol,
+                        float(lot_size) if lot_size is not None else None,
+                        str(expiry_date) if expiry_date else None,
+                        source,
+                        now_utc().isoformat(),
+                    )
+                )
+            if not payload:
+                return 0
+            conn.executemany(
+                """
+                INSERT INTO instrument_specs (symbol, lot_size, expiry_date, source, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(symbol) DO UPDATE SET
+                    lot_size = excluded.lot_size,
+                    expiry_date = excluded.expiry_date,
+                    source = excluded.source,
+                    updated_at = excluded.updated_at
+                """,
+                payload,
+            )
+            conn.commit()
+        return len(payload)
+
+    def get_instrument_spec(self, symbol: str) -> dict[str, object] | None:
+        normalized = symbol.strip().upper()
+        if not normalized:
+            return None
+        with self._lock, self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT symbol, lot_size, expiry_date, source, updated_at
+                FROM instrument_specs
+                WHERE symbol = ?
+                """,
+                (normalized,),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "symbol": row[0],
+            "lot_size": row[1],
+            "expiry_date": row[2],
+            "source": row[3],
+            "updated_at": row[4],
+        }
+
     def list_recent_signals(self, limit: int = 200) -> list[dict[str, object]]:
         with self._lock, self._connect() as conn:
             rows = conn.execute(
@@ -554,6 +615,17 @@ class SQLiteMarketDataStore:
                     close_price REAL,
                     realized_pnl_per_lot REAL,
                     closed_at TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS instrument_specs (
+                    symbol TEXT PRIMARY KEY,
+                    lot_size REAL,
+                    expiry_date TEXT,
+                    source TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
                 )
                 """
             )

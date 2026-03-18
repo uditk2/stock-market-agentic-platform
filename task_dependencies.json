@@ -215,6 +215,13 @@
       "depends_on": [
         "W15H"
       ]
+    },
+    {
+      "id": "W15J",
+      "name": "FR13-FR15 Lifecycle Precision (Lot Size and Expiry Cutoff)",
+      "depends_on": [
+        "W15I"
+      ]
     }
   ]
 }

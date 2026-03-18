@@ -617,3 +617,33 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Add tests for trigger behavior and label persistence.
 - Risks and open questions:
   - Accurate expiry/cutoff semantics need full contract/calendar integration in later slices.
+
+### Current Slice: W15J FR13-FR15 Lifecycle Precision (Lot Size + Expiry Cutoff)
+- Problem statement:
+  - W15I delivered baseline lifecycle behavior, but P&L still assumes `lot_size=1` and cutoff still uses generic 24h age.
+- Constraints and assumptions:
+  - Keep behavior deterministic and backward-compatible for records missing instrument metadata.
+  - Keep fallback closure path available when expiry metadata is not yet discovered.
+- Design alternatives considered:
+  1. Keep static lot size and 24h cutoff: rejected (low correctness for F&O outcomes).
+  2. Require full exchange calendar/contract master before any lifecycle run: rejected (blocks operations).
+  3. Add progressive precision with persisted instrument specs and fallback path: chosen.
+- Chosen architecture:
+  - New instrument-spec persistence (`symbol`, `lot_size`, `expiry_date`, source metadata).
+  - Kotak symbol-master parser extracts lot size/expiry hints and stores them via ingestion path.
+  - Lifecycle evaluator computes realized P&L using symbol lot size when present.
+  - Cutoff trigger checks expiry-day IST cutoff first; falls back to age-based rule when metadata is absent.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/plugins/market/kotak_client.py`
+  - `apps/service/src/smap_service/ingestion/jobs.py`
+  - `apps/service/src/smap_service/db/market_data.py`
+  - `apps/service/src/smap_service/core/recommendations.py`
+  - `apps/service/tests/test_recommendations.py`
+  - `apps/service/tests/test_connectors_baseline.py`
+- Delivery plan:
+  - Add instrument-spec schema + persistence API.
+  - Extend Kotak parser and ingestion wiring.
+  - Switch lifecycle P&L/cutoff logic to metadata-aware path with fallback.
+  - Add focused tests and run service suite.
+- Risks and open questions:
+  - Kotak CSV schema may vary by account/feed; parser must remain tolerant and fallback-safe.

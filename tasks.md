@@ -429,3 +429,22 @@
 - Add recommendation lifecycle monitor job.
 - Apply close triggers (profit/loss/cutoff defaults).
 - Persist closure outcomes as labels for downstream learning/backtesting.
+
+## Iteration 55 (W15J Lifecycle Precision Draft)
+1. Add persisted instrument specification store for lot size and expiry metadata.
+2. Extend Kotak scrip-master parsing to extract lot size and expiry fields.
+3. Persist symbol specs through ingestion path.
+4. Update lifecycle P&L to use lot-size-aware calculations.
+5. Update cutoff trigger to use expiry-day IST cutoff with fallback.
+6. Add targeted tests.
+
+## Iteration 56 (W15J Lifecycle Precision Refined)
+1. Keep parser resilient to varying CSV column names and empty values.
+2. Keep lifecycle deterministic when metadata is missing (fallback retained).
+3. Keep DB changes backward-compatible for existing runtime files.
+4. Keep test fixtures self-contained (no external network calls).
+
+16. W15J FR13-FR15 Precision Refinement
+- Persist per-symbol futures metadata (lot size + expiry).
+- Apply metadata-aware lifecycle P&L and cutoff evaluation.
+- Preserve fallback closure logic for symbols without metadata.

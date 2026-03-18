@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta, timezone
 
 from smap_service.db.market_data import SQLiteMarketDataStore
 
@@ -51,14 +51,15 @@ class RecommendationService:
                 continue
             direction = str(row["direction"])
             entry = float(row["entry_price"])
-            lot_size = 1.0
+            spec = self._store.get_instrument_spec(symbol)
+            lot_size = _resolve_lot_size(spec)
             pnl = (latest_close - entry) * lot_size if direction == "long" else (entry - latest_close) * lot_size
             reason: str | None = None
             if pnl >= 20000:
                 reason = "profit_trigger"
             elif pnl <= -30000:
                 reason = "loss_trigger"
-            elif _is_cutoff_elapsed(str(row.get("created_at", ""))):
+            elif _is_cutoff_elapsed(str(row.get("created_at", "")), _resolve_expiry_date(spec)):
                 reason = "cutoff_trigger"
             if reason is None:
                 continue
@@ -218,11 +219,46 @@ def now_utc() -> datetime:
     return datetime.now(UTC)
 
 
-def _is_cutoff_elapsed(created_at: str) -> bool:
+def _is_cutoff_elapsed(created_at: str, expiry_date: str | None) -> bool:
+    if expiry_date:
+        try:
+            expiry_day = datetime.fromisoformat(expiry_date).date()
+            cutoff_ist = datetime.combine(expiry_day, time(hour=15, minute=20), tzinfo=IST)
+            return now_utc().astimezone(IST) >= cutoff_ist
+        except ValueError:
+            pass
     if not created_at:
         return False
     try:
         ts = datetime.fromisoformat(created_at)
     except ValueError:
         return False
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=UTC)
     return (now_utc() - ts).total_seconds() >= 24 * 3600
+
+
+def _resolve_lot_size(spec: dict[str, object] | None) -> float:
+    if not spec:
+        return 1.0
+    lot_size = spec.get("lot_size")
+    if lot_size is None:
+        return 1.0
+    try:
+        parsed = float(lot_size)
+    except (TypeError, ValueError):
+        return 1.0
+    return parsed if parsed > 0 else 1.0
+
+
+def _resolve_expiry_date(spec: dict[str, object] | None) -> str | None:
+    if not spec:
+        return None
+    value = spec.get("expiry_date")
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+IST = timezone(timedelta(hours=5, minutes=30))

@@ -29,19 +29,27 @@ def ingest_market_bars(
     symbols = _resolve_symbol_universe(market_client)
     bars = market_client.fetch_latest_bars(symbols=symbols)
     persisted = len(bars)
+    specs_persisted = 0
     if market_data_store is not None:
         persisted = market_data_store.save_market_bars(bars)
+        specs = _resolve_instrument_specs(market_client=market_client, symbols=symbols)
+        specs_persisted = market_data_store.save_instrument_specs(specs)
     logger.info(
-        "market bars ingestion tick connector=%s records=%s",
+        "market bars ingestion tick connector=%s records=%s specs=%s",
         market_client.name,
         persisted,
+        specs_persisted,
     )
     return JobResult(
         job_name="ingest_market_bars",
         status="success",
         records_processed=persisted,
         connector=market_client.name,
-        attribution={"symbols_requested": len(symbols), "symbols_source": "dynamic_or_fallback"},
+        attribution={
+            "symbols_requested": len(symbols),
+            "symbols_source": "dynamic_or_fallback",
+            "instrument_specs_persisted": specs_persisted,
+        },
     )
 
 
@@ -117,6 +125,32 @@ def _resolve_symbol_universe(market_client: MarketFeedClient) -> list[str]:
         except Exception as exc:  # pragma: no cover - runtime wrapper
             logger.warning("symbol universe resolver failed: %s", exc)
     return default
+
+
+def _resolve_instrument_specs(market_client: MarketFeedClient, symbols: list[str]) -> list[dict[str, object]]:
+    resolver = getattr(market_client, "fetch_instrument_specs", None)
+    if not callable(resolver):
+        return []
+    try:
+        payload = resolver(symbols)
+    except Exception as exc:  # pragma: no cover - runtime wrapper
+        logger.warning("instrument specs resolver failed: %s", exc)
+        return []
+    if isinstance(payload, dict):
+        rows: list[dict[str, object]] = []
+        for symbol, spec in payload.items():
+            if not isinstance(spec, dict):
+                continue
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "lot_size": spec.get("lot_size"),
+                    "expiry_date": spec.get("expiry_date"),
+                    "source": spec.get("source", getattr(market_client, "name", "market_client")),
+                }
+            )
+        return rows
+    return []
 
 
 def _map_news_symbols(items: list[NewsItem]) -> list[NewsItem]:

@@ -262,6 +262,14 @@
         "W15N",
         "W15K"
       ]
+    },
+    {
+      "id": "W15P",
+      "name": "FR5-FR8 Closure Pass",
+      "depends_on": [
+        "W15O",
+        "W15L"
+      ]
     }
   ]
 }

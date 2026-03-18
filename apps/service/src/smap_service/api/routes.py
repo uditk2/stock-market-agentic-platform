@@ -199,6 +199,11 @@ def build_router(runtime: AppRuntime) -> APIRouter:
             ],
         }
 
+    @router.get("/signals/recent")
+    def signals_recent(limit: int = 100) -> dict[str, Any]:
+        rows = runtime.market_data.list_recent_signals(limit=limit)
+        return {"items": rows}
+
     @router.get("/recommendations")
     def recommendations(query: str | None = None) -> dict[str, Any]:
         items = runtime.recommendations.list(query=query)

@@ -50,6 +50,12 @@ def test_recommendations_and_provider_routes_shape() -> None:
     assert "summary" in observability_payload
     assert "recent" in observability_payload
 
+    signals_recent = client.get("/signals/recent")
+    assert signals_recent.status_code == 200
+    signals_payload = signals_recent.json()
+    assert "items" in signals_payload
+    assert isinstance(signals_payload["items"], list)
+
 
 def test_provider_selection_validation_rejects_missing_required_fields() -> None:
     client = TestClient(app)

@@ -532,3 +532,18 @@
 - Enforce required baseline futures inclusion.
 - Improve ingestion coverage observability.
 - Close issue #40 when closure criteria are satisfied.
+
+## Iteration 67 (W15P FR5-FR8 Closure Draft)
+1. Add `/signals/recent` API route backed by persisted signal rows.
+2. Add route response shape test coverage.
+3. Validate full service suite and close issue #41.
+
+## Iteration 68 (W15P FR5-FR8 Closure Refined)
+1. Keep route response bounded with `limit`.
+2. Keep payload aligned to stored signal contract fields.
+3. Preserve diagnostics and existing route compatibility.
+4. Update issue #41 with closure note once validated.
+
+22. W15P FR5-FR8 Closure Pass
+- Expose calibrated signals over stable API route.
+- Add route tests and close issue #41.

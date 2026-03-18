@@ -779,3 +779,26 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Validate full service suite.
 - Risks and open questions:
   - Universe breadth still benefits from future exchange-driven contract catalog ingestion.
+
+### Current Slice: W15P FR5-FR8 Closure (Priority #2)
+- Problem statement:
+  - Signal engine and calibration are implemented, but issue #41 still lacks explicit API exposure closure for downstream consumers.
+- Constraints and assumptions:
+  - Reuse persisted signal rows; avoid introducing new storage schema.
+  - Keep route lightweight and deterministic.
+- Design alternatives considered:
+  1. Keep signals internal only: rejected.
+  2. Add heavy analytics endpoint now: rejected (scope creep).
+  3. Add focused `/signals/recent` route with persisted contract fields: chosen.
+- Chosen architecture:
+  - API route fetches `list_recent_signals(limit)` from store.
+  - Route returns stable list payload for UI/integration consumers.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/api/routes.py`
+  - `apps/service/tests/test_health_route.py`
+- Delivery plan:
+  - Add route and response payload.
+  - Add route tests.
+  - Validate full service suite and close #41.
+- Risks and open questions:
+  - Outcome-based ranking quality tuning remains separate from route exposure completion.

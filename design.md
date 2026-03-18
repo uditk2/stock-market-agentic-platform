@@ -690,3 +690,17 @@ Acceptance target:
 - Ingestion always includes required baseline futures regardless of dynamic discovery availability.
 - Coverage attribution metrics are present for diagnostics/audit.
 - Tests cover guaranteed inclusion behavior and attribution shape.
+
+## 27. W15P FR5-FR8 Closure Pass (Priority #2)
+Objective:
+- Close issue #41 by exposing calibrated signal outputs through a stable API surface and validating route behavior.
+
+Design:
+- Add a `GET /signals/recent` endpoint backed by persisted signal rows.
+- Preserve deterministic ordering and bounded payload size via `limit`.
+- Keep route schema simple and aligned with existing stored signal contract.
+
+Acceptance target:
+- API exposes recent persisted signals with calibrated feature payload.
+- Tests validate route shape and response behavior.
+- Issue #41 closure criteria is met.

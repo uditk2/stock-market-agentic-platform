@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import calendar
 import hashlib
 from dataclasses import dataclass
-from datetime import UTC, datetime, time, timedelta, timezone
+from datetime import UTC, date, datetime, time, timedelta, timezone
 
 from smap_service.db.market_data import SQLiteMarketDataStore
 
@@ -238,11 +239,12 @@ def now_utc() -> datetime:
 
 
 def _is_cutoff_elapsed(created_at: str, expiry_date: str | None) -> bool:
+    now_ist = now_utc().astimezone(IST)
     if expiry_date:
         try:
             expiry_day = datetime.fromisoformat(expiry_date).date()
             cutoff_ist = datetime.combine(expiry_day, time(hour=15, minute=20), tzinfo=IST)
-            return now_utc().astimezone(IST) >= cutoff_ist
+            return now_ist >= cutoff_ist
         except ValueError:
             pass
     if not created_at:
@@ -253,7 +255,34 @@ def _is_cutoff_elapsed(created_at: str, expiry_date: str | None) -> bool:
         return False
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=UTC)
+    inferred = _infer_monthly_expiry_cutoff(ts.astimezone(IST))
+    if inferred is not None:
+        return now_ist >= inferred
     return (now_utc() - ts).total_seconds() >= 24 * 3600
+
+
+def _infer_monthly_expiry_cutoff(created_at_ist: datetime) -> datetime | None:
+    try:
+        year = created_at_ist.year
+        month = created_at_ist.month
+        first_cutoff = datetime.combine(_last_thursday(year, month), time(hour=15, minute=20), tzinfo=IST)
+        if created_at_ist <= first_cutoff:
+            return first_cutoff
+        if month == 12:
+            year += 1
+            month = 1
+        else:
+            month += 1
+        second_cutoff = datetime.combine(_last_thursday(year, month), time(hour=15, minute=20), tzinfo=IST)
+        return second_cutoff
+    except Exception:
+        return None
+
+
+def _last_thursday(year: int, month: int) -> date:
+    month_calendar = calendar.monthcalendar(year, month)
+    thursdays = [week[calendar.THURSDAY] for week in month_calendar if week[calendar.THURSDAY] != 0]
+    return date(year, month, thursdays[-1])
 
 
 def _resolve_lot_size(spec: dict[str, object] | None) -> float:

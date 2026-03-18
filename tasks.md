@@ -500,3 +500,19 @@
 - Improve recommendation publish quality with calibrated guardrails.
 - Improve risk-reward target construction.
 - Keep suppression reasons explicit for diagnostics and audit.
+
+## Iteration 63 (W15N FR13-FR15 Calendar Precision Draft)
+1. Add monthly-expiry fallback inference helper (last Thursday, IST) from recommendation timestamp.
+2. Update lifecycle cutoff precedence: explicit expiry -> inferred monthly expiry -> elapsed-time fallback.
+3. Add tests for inferred elapsed and non-elapsed cutoff outcomes.
+
+## Iteration 64 (W15N FR13-FR15 Calendar Precision Refined)
+1. Keep explicit `expiry_date` behavior unchanged.
+2. Keep inference deterministic and timezone-stable in IST.
+3. Keep fallback safe for malformed timestamps.
+4. Validate full service suite after lifecycle logic update.
+
+20. W15N FR13-FR15 Calendar Precision Fallback
+- Add monthly-expiry cutoff inference for missing expiry metadata.
+- Keep lifecycle close behavior deterministic and auditable.
+- Preserve explicit metadata precedence.

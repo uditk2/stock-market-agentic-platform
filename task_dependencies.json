@@ -246,6 +246,14 @@
         "W15L",
         "W15H"
       ]
+    },
+    {
+      "id": "W15N",
+      "name": "FR13-FR15 Calendar Precision Fallback",
+      "depends_on": [
+        "W15M",
+        "W15J"
+      ]
     }
   ]
 }

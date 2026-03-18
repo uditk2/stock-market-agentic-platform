@@ -1,4 +1,5 @@
 from smap_service.core.interfaces import MarketBar, NewsItem
+from smap_service.core import recommendations as recommendation_module
 from smap_service.core.recommendations import RecommendationService
 from smap_service.core.signals import compute_signals_from_store
 from smap_service.db.market_data import SQLiteMarketDataStore
@@ -209,3 +210,23 @@ def test_recommendation_guardrail_uses_higher_confidence_threshold_for_high_vola
     )
     assert verdict["ok"] is False
     assert verdict["reason"] == "confidence_below_threshold"
+
+
+def test_cutoff_infers_monthly_expiry_elapsed_without_explicit_expiry(monkeypatch) -> None:
+    monkeypatch.setattr(
+        recommendation_module,
+        "now_utc",
+        lambda: recommendation_module.datetime(2026, 3, 30, 12, 0, tzinfo=recommendation_module.UTC),
+    )
+    created_at = "2026-03-10T10:00:00+00:00"
+    assert recommendation_module._is_cutoff_elapsed(created_at=created_at, expiry_date=None) is True
+
+
+def test_cutoff_infers_monthly_expiry_not_elapsed_without_explicit_expiry(monkeypatch) -> None:
+    monkeypatch.setattr(
+        recommendation_module,
+        "now_utc",
+        lambda: recommendation_module.datetime(2026, 3, 20, 12, 0, tzinfo=recommendation_module.UTC),
+    )
+    created_at = "2026-03-10T10:00:00+00:00"
+    assert recommendation_module._is_cutoff_elapsed(created_at=created_at, expiry_date=None) is False

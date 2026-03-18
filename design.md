@@ -658,3 +658,18 @@ Acceptance target:
 - Recommendations failing quality thresholds are persisted as `suppressed` with clear reasons.
 - Published recommendations satisfy calibrated guardrails.
 - Tests cover new publish/suppress logic and suite remains green.
+
+## 25. W15N FR13-FR15 Calendar Precision (Monthly Expiry Fallback)
+Objective:
+- Improve lifecycle cutoff precision when explicit symbol expiry metadata is unavailable.
+
+Design:
+- Add deterministic monthly-expiry cutoff inference in IST:
+  - infer contract cutoff using last-Thursday rule and recommendation creation timestamp context.
+- Keep explicit `expiry_date` metadata highest precedence when available.
+- Keep safe fallback path if timestamp parsing fails.
+
+Acceptance target:
+- Lifecycle cutoff can operate with exchange-like monthly expiry semantics even without explicit expiry field.
+- Explicit expiry metadata behavior remains unchanged.
+- Tests cover inferred cutoff elapsed/not-elapsed scenarios.

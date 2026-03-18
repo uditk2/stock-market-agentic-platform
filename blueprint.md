@@ -727,3 +727,29 @@ Build an auditable, modular NSE F&O futures recommendation desktop platform that
   - Validate full service suite.
 - Risks and open questions:
   - Thresholds remain heuristic; outcome-driven calibration is a follow-up track.
+
+### Current Slice: W15N FR13-FR15 Calendar Precision Fallback
+- Problem statement:
+  - Lifecycle cutoff uses explicit expiry metadata when present, but fallback behavior still lacks exchange-calendar semantics when metadata is missing.
+- Constraints and assumptions:
+  - Preserve explicit `expiry_date` precedence.
+  - Keep deterministic behavior without introducing external calendar service dependency.
+- Design alternatives considered:
+  1. Keep elapsed-time fallback only: rejected (low calendar realism).
+  2. Integrate full exchange calendar provider now: rejected (scope/time overhead for this slice).
+  3. Add deterministic monthly-expiry fallback inference (last Thursday, IST): chosen.
+- Chosen architecture:
+  - Add helper to infer monthly futures cutoff from recommendation creation timestamp.
+  - Apply precedence:
+    - explicit expiry cutoff,
+    - inferred monthly expiry cutoff,
+    - final elapsed-time fallback for malformed timestamps.
+- Interfaces/modules:
+  - `apps/service/src/smap_service/core/recommendations.py`
+  - `apps/service/tests/test_recommendations.py`
+- Delivery plan:
+  - Implement inference helper and cutoff precedence logic.
+  - Add tests for elapsed/non-elapsed inferred cutoff behavior.
+  - Validate full service suite.
+- Risks and open questions:
+  - Last-Thursday fallback is a practical proxy; holiday-adjusted expiry handling remains a future enhancement.

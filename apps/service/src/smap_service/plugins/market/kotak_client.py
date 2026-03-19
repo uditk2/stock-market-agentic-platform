@@ -5,8 +5,8 @@ import json
 import logging
 import re
 import socket
-import urllib.error
 import urllib.parse
+import urllib.error
 import urllib.request
 from datetime import datetime
 from io import StringIO
@@ -19,15 +19,41 @@ from smap_service.db.provider_credentials import SQLiteProviderCredentialStore
 logger = logging.getLogger(__name__)
 
 
+class _KotakAuthError(Exception):
+    pass
+
+
 class KotakMarketFeedClient(MarketFeedClient):
+    _DEFAULT_BASE_URLS = (
+        "https://mis.kotaksecurities.com",
+        "https://e21.kotaksecurities.com",
+        "https://e22.kotaksecurities.com",
+        "https://e41.kotaksecurities.com",
+        "https://e43.kotaksecurities.com",
+        "https://gw-napi.kotaksecurities.com",
+        "https://napi.kotaksecurities.com",
+        "https://mnapi.kotaksecurities.com",
+        "https://cnapi.kotaksecurities.com",
+    )
+    _SCRIP_MASTER_PATHS = (
+        "/Files/1.0/masterscrip/v2/file-paths",
+        "/script-details/1.0/masterscrip/file-paths",
+    )
+    _QUOTE_PATHS = (
+        "/apim/quotes/1.0/quotes/neosymbol/{neo_symbol}/ohlc",
+        "/apim/quotes/1.0/quotes/neosymbol/{neo_symbol}/all",
+        "/script-details/1.0/quotes/neosymbol/{neo_symbol}/ohlc",
+        "/script-details/1.0/quotes/neosymbol/{neo_symbol}/all",
+    )
+
     def __init__(
         self,
         credentials: SQLiteProviderCredentialStore,
-        base_url: str = "https://mnapi.kotaksecurities.com",
+        base_url: str = "https://mis.kotaksecurities.com",
         timeout_seconds: float = 5.0,
     ):
         self._credentials = credentials
-        self._base_url = base_url.rstrip("/")
+        self._base_urls = self._build_base_url_candidates(base_url)
         self._timeout_seconds = timeout_seconds
         self._token_cache: dict[str, str] | None = None
 
@@ -142,6 +168,24 @@ class KotakMarketFeedClient(MarketFeedClient):
             if not paths:
                 return {"ok": False, "code": "empty_scrip_master", "message": "Scrip master path list is empty."}
             return {"ok": True, "code": "verified", "message": "Kotak credentials verified via scrip-master endpoint."}
+        except _KotakAuthError:
+            return {
+                "ok": False,
+                "code": "invalid_credentials",
+                "message": "Kotak token was rejected by upstream authentication.",
+            }
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                return {
+                    "ok": False,
+                    "code": "invalid_credentials",
+                    "message": "Kotak token was rejected by upstream authentication.",
+                }
+            return {
+                "ok": False,
+                "code": "upstream_response_error",
+                "message": f"Kotak upstream returned HTTP {exc.code}.",
+            }
         except urllib.error.URLError as exc:  # pragma: no cover - runtime/network wrapper
             reason = getattr(exc, "reason", None)
             if isinstance(reason, socket.timeout):
@@ -157,22 +201,18 @@ class KotakMarketFeedClient(MarketFeedClient):
     def _fetch_symbol(self, symbol: str, instrument_token: str, token: str) -> MarketBar | None:
         def _request() -> MarketBar | None:
             neo_symbol = urllib.parse.quote(f"nse_fo|{instrument_token}", safe="")
-            request = urllib.request.Request(
-                f"{self._base_url}/script-details/1.0/quotes/neosymbol/{neo_symbol}/ohlc",
-                headers={
-                    "Authorization": token,
-                    "Content-Type": "application/x-www-form-urlencoded",
-                    "User-Agent": "smap-service/0.1",
-                },
-                method="GET",
+            payload = self._request_json(
+                paths=tuple(path.format(neo_symbol=neo_symbol) for path in self._QUOTE_PATHS),
+                token=token,
             )
-            with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
-                payload = json.loads(response.read().decode("utf-8"))
             normalized_payload = self._extract_quote_payload(payload)
             return self._normalize(symbol=symbol, payload=normalized_payload)
 
         try:
             return retry_call(_request, attempts=3, base_delay_seconds=0.25)
+        except _KotakAuthError as exc:
+            logger.warning("kotak fetch failed symbol=%s error=invalid_credentials detail=%s", symbol, exc)
+            return None
         except Exception as exc:  # pragma: no cover - network/runtime wrapper
             logger.warning("kotak fetch failed symbol=%s error=%s", symbol, exc)
             return None
@@ -196,22 +236,77 @@ class KotakMarketFeedClient(MarketFeedClient):
         return resolved
 
     def _fetch_scrip_master_paths(self, token: str) -> list[str]:
-        request = urllib.request.Request(
-            f"{self._base_url}/script-details/1.0/masterscrip/file-paths",
-            headers={
-                "Authorization": token,
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": "smap-service/0.1",
-            },
-            method="GET",
-        )
-        with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        data = payload.get("data", {})
-        paths = data.get("filesPaths", [])
-        if isinstance(paths, list):
-            return [str(item) for item in paths if isinstance(item, str)]
+        payload = self._request_json(paths=self._SCRIP_MASTER_PATHS, token=token)
+        if not isinstance(payload, dict):
+            return {}
+        data = payload.get("data")
+        for candidate in (data, payload):
+            if not isinstance(candidate, dict):
+                continue
+            for key in ("filesPaths", "filePaths", "paths", "files"):
+                values = candidate.get(key)
+                if isinstance(values, list):
+                    parsed = [str(item).strip() for item in values if isinstance(item, str) and str(item).strip()]
+                    if parsed:
+                        return parsed
         return []
+
+    def _request_json(self, paths: tuple[str, ...], token: str) -> Any:
+        errors: list[Exception] = []
+        auth_errors: list[Exception] = []
+        for base_url in self._base_urls:
+            for path in paths:
+                full_url = f"{base_url}/{path.lstrip('/')}"
+                for auth_value in self._auth_values(token):
+                    request = urllib.request.Request(
+                        full_url,
+                        headers={
+                            "Authorization": auth_value,
+                            "Content-Type": "application/x-www-form-urlencoded",
+                            "User-Agent": "smap-service/0.1",
+                        },
+                        method="GET",
+                    )
+                    try:
+                        with urllib.request.urlopen(request, timeout=self._timeout_seconds) as response:
+                            return json.loads(response.read().decode("utf-8"))
+                    except urllib.error.HTTPError as exc:
+                        if exc.code in (401, 403):
+                            auth_errors.append(exc)
+                            continue
+                        if exc.code == 404:
+                            continue
+                        errors.append(exc)
+                    except urllib.error.URLError as exc:
+                        errors.append(exc)
+        if auth_errors:
+            last = auth_errors[-1]
+            raise _KotakAuthError(f"auth_failed status={getattr(last, 'code', 'unknown')}") from last
+        if errors:
+            raise errors[-1]
+        raise urllib.error.URLError("No Kotak endpoint candidates available.")
+
+    @staticmethod
+    def _build_base_url_candidates(base_url: str) -> tuple[str, ...]:
+        ordered = [base_url, *KotakMarketFeedClient._DEFAULT_BASE_URLS]
+        seen: set[str] = set()
+        output: list[str] = []
+        for item in ordered:
+            value = str(item or "").strip().rstrip("/")
+            if not value or value in seen:
+                continue
+            seen.add(value)
+            output.append(value)
+        return tuple(output)
+
+    @staticmethod
+    def _auth_values(token: str) -> tuple[str, ...]:
+        raw = str(token or "").strip()
+        if not raw:
+            return tuple()
+        if raw.lower().startswith("bearer "):
+            return (raw,)
+        return (raw, f"Bearer {raw}")
 
     def _fetch_csv_rows(self, url: str) -> list[dict[str, str]]:
         with urllib.request.urlopen(url, timeout=self._timeout_seconds) as response:
@@ -258,7 +353,14 @@ class KotakMarketFeedClient(MarketFeedClient):
         return ""
 
     @staticmethod
-    def _extract_quote_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    def _extract_quote_payload(payload: Any) -> dict[str, Any]:
+        if isinstance(payload, list) and payload:
+            first = payload[0]
+            if isinstance(first, dict):
+                nested_ohlc = first.get("ohlc")
+                if isinstance(nested_ohlc, dict):
+                    return nested_ohlc
+                return first
         data = payload.get("data")
         if isinstance(data, list) and data:
             first = data[0]

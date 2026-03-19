@@ -1,5 +1,6 @@
 import socket
 import urllib.error
+from io import BytesIO
 
 from smap_service.core.retry import retry_call
 from smap_service.ingestion.jobs import ingest_market_bars
@@ -68,6 +69,66 @@ def test_kotak_verify_credentials_reports_upstream_timeout(tmp_path, monkeypatch
     assert result["code"] == "upstream_timeout"
 
 
+def test_kotak_verify_credentials_reports_invalid_credentials(tmp_path, monkeypatch) -> None:
+    store = SQLiteProviderCredentialStore(
+        db_path=tmp_path / "runtime.sqlite3",
+        key_path=tmp_path / "credentials.key",
+    )
+    store.save_selection(provider="kotak_neo", credentials={"access_token": "token"})
+    client = KotakMarketFeedClient(credentials=store)
+
+    def _invalid(token: str) -> list[str]:
+        raise urllib.error.HTTPError(
+            url="https://gw-napi.kotaksecurities.com/Files/1.0/masterscrip/v2/file-paths",
+            code=401,
+            msg="unauthorized",
+            hdrs=None,
+            fp=BytesIO(),
+        )
+
+    monkeypatch.setattr(client, "_fetch_scrip_master_paths", _invalid)
+    result = client.verify_credentials()
+    assert result["ok"] is False
+    assert result["code"] == "invalid_credentials"
+
+
+def test_kotak_request_json_fallbacks_on_404(monkeypatch, tmp_path) -> None:
+    store = SQLiteProviderCredentialStore(
+        db_path=tmp_path / "runtime.sqlite3",
+        key_path=tmp_path / "credentials.key",
+    )
+    client = KotakMarketFeedClient(credentials=store, base_url="https://first.example.com")
+    client._base_urls = ("https://first.example.com", "https://second.example.com")
+    calls: list[str] = []
+
+    class _Response:
+        def __init__(self, payload: str):
+            self._payload = payload
+
+        def read(self) -> bytes:
+            return self._payload.encode("utf-8")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def _urlopen(request, timeout=0):  # noqa: ANN001
+        calls.append(request.full_url)
+        if request.full_url.endswith("/first"):
+            raise urllib.error.HTTPError(request.full_url, 404, "not found", hdrs=None, fp=BytesIO())
+        return _Response('{"data":{"filesPaths":["https://example.com/master.csv"]}}')
+
+    monkeypatch.setattr("urllib.request.urlopen", _urlopen)
+    payload = client._request_json(paths=("/first", "/second"), token="Bearer abc")
+    assert payload["data"]["filesPaths"][0] == "https://example.com/master.csv"
+    assert calls == [
+        "https://first.example.com/first",
+        "https://first.example.com/second",
+    ]
+
+
 def test_extract_symbol_root_parses_stock_future_symbols() -> None:
     assert _extract_symbol_root("RELIANCE24MARFUT") == "RELIANCE"
     assert _extract_symbol_root("NIFTY24MARFUT") == "NIFTY"
@@ -81,3 +142,21 @@ def test_kotak_extracts_lot_size_and_expiry_from_master_rows() -> None:
     }
     assert _extract_lot_size(row) == 250.0
     assert _extract_expiry_date(row) == "2026-03-27"
+
+
+def test_kotak_extract_quote_payload_handles_list_ohlc_shape(tmp_path) -> None:
+    store = SQLiteProviderCredentialStore(
+        db_path=tmp_path / "runtime.sqlite3",
+        key_path=tmp_path / "credentials.key",
+    )
+    client = KotakMarketFeedClient(credentials=store)
+    payload = [
+        {
+            "exchange_token": "70537",
+            "display_symbol": "MIDCPNIFTY26MAY12625PE",
+            "ohlc": {"open": "1", "high": "2", "low": "0.5", "close": "1.5"},
+        }
+    ]
+    normalized = client._extract_quote_payload(payload)
+    assert normalized["open"] == "1"
+    assert normalized["close"] == "1.5"

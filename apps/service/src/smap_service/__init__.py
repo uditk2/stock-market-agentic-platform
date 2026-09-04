@@ -1,1 +1,0 @@
-"""SMAP background service package."""

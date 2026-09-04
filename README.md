@@ -1,82 +1,56 @@
 # Stock Market Agentic Platform
 
-Modular desktop platform scaffold for NSE F&O signal/recommendation workflows.
+Live NSE F&O prices from Kotak Neo, overlaid on a curated relationship graph of
+the Nifty 500, with an agentic layer that runs on your existing Claude Code and
+Codex subscriptions through CLIProxyAPI.
 
-## Monorepo Layout
-- `apps/service`: Python background service (scheduler + ingestion + APIs + plugin registries)
-- `apps/desktop`: Electron desktop shell (wizard + terminal + service control)
-- `packages/contracts`: shared contracts used by service and desktop
-- `.github/workflows`: CI build and packaging pipeline
+The application lives in [`apps/live-graph`](apps/live-graph); its README covers
+setup, credentials and architecture in full.
 
-## Quick Start
-
-### Installer Runtime (Preferred)
-1. Install SMAP Desktop package for your OS.
-2. Launch desktop app.
-3. In Setup Wizard:
-- run mandatory CLI checks
-- use `Install Background Service` when prompted
-4. After wizard passes, workspace unlocks and service is managed without manual service-install commands.
-
-### macOS Unsigned Install (No Notarization)
-Direct latest DMG (private GitHub release link; requires repo access):
-- https://github.com/uditk2/stock-market-agentic-platform/releases/tag/smap-mac-latest
-
-If macOS reports the app as damaged/blocked, run:
+## Quick start
 
 ```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/uditk2/stock-market-agentic-platform/master/scripts/macos/unblock_unsigned_app.sh)"
+cd apps/live-graph
+docker compose up --build
 ```
 
-Or run locally from repo checkout:
+Then open http://localhost:8000. Without Kotak credentials the app starts on a
+simulated feed and says so, in an amber badge, on every screen.
+
+From source instead:
 
 ```bash
-scripts/macos/unblock_unsigned_app.sh "/Applications/SMAP Desktop.app"
+make install
+make run
 ```
 
-### Service
-```bash
-cd apps/service
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .[dev]
-uvicorn smap_service.main:app --reload --port 18787
-```
+## What it does
 
-### Desktop
-```bash
-cd apps/desktop
-npm install
-npm run dev
-```
+- **Scan** — the largest movers each way in the F&O tier, each carrying a
+  verdict computed from peer and sector arithmetic plus typed graph edges:
+  unexplained, conflicted, stock-specific or sector-wide. Drill from a mover
+  into the stock, then into its peer group, its sector, or its graph drivers.
+- **Graph** — 545 nodes and 3,003 typed edges, coloured by the live move.
+- **Scratchpad** — describe a strategy in English; a model writes it and it runs
+  in a WASM sandbox against a live snapshot, returning tables and charts.
+- **Analyst** — ask questions; answers come from graph and price tools, never
+  from memory.
+- **Admin** — the Kotak session, which expires daily.
 
-In source mode, desktop will auto-try local service binary (`apps/service/dist`) and then fall back to `python3 -m uvicorn ...` when needed.
+## Shape
 
-In packaged installer mode, desktop auto-resolves bundled service binary from app resources (`resources/service/`) so install-and-run works without manual `SMAP_SERVICE_BIN` setup.
+One image, one container, one port. FastAPI serves the API, the tick WebSocket
+and the exported UI, and hosts the strategy sandbox in-process as a Pyodide
+(WASM) runtime, so nothing mounts the Docker socket and no sibling containers
+are started.
 
-## Current Sprint Status
-Sprint 1 scaffolding implemented with pluggable interfaces:
-- `LLMAdapter`
-- `NewsProvider`
-- `StrategyModule`
+Directory | Contents
+---|---
+`apps/live-graph` | The application: backend, UI, tests, Dockerfile
+`tasks`, `design_specs`, `issues` | Planning history from the earlier desktop platform
 
-Background scheduler runs inside service process and is designed to keep ingestion jobs independent from the UI lifecycle.
+## History
 
-## W5 Background Service Install Helpers
-- Linux (`systemd --user`):
-```bash
-scripts/background_service/install_linux_user_service.sh --service-bin /abs/path/to/smap-service
-scripts/background_service/uninstall_linux_user_service.sh
-```
-- macOS (`launchd` LaunchAgent):
-```bash
-scripts/background_service/install_macos_launchagent.sh --service-bin /abs/path/to/smap-service
-scripts/background_service/uninstall_macos_launchagent.sh
-```
-- Windows (Task Scheduler):
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/background_service/install_windows_task.ps1 -ServiceBin C:\path\to\smap-service.exe
-powershell -ExecutionPolicy Bypass -File scripts/background_service/uninstall_windows_task.ps1
-```
-
-All installers default to user-scoped registration and support optional `--arg`/`-ServiceArgs` for service runtime flags.
+This repository previously held an Electron desktop shell and a separate Python
+background service. Both were removed in favour of the single application in
+`apps/live-graph`. The planning documents are kept for context.

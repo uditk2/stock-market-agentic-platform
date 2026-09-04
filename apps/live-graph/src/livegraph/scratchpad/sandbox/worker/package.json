@@ -1,0 +1,8 @@
+{
+  "name": "livegraph-sandbox-worker",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pyodide": "314.0.6"
+  }
+}

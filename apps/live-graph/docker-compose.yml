@@ -1,0 +1,20 @@
+services:
+  livegraph:
+    build: .
+    image: livegraph:latest
+    ports:
+      - "8000:8000"
+    env_file:
+      # Kotak credentials and the CLIProxy key. Copy .env.example to .env.
+      # Without the Kotak values the app starts on the simulated feed.
+      - path: .env
+        required: false
+    environment:
+      # CLIProxyAPI runs on the host, so "localhost" would resolve to this
+      # container. The .env value is for running from source and is
+      # deliberately NOT reused here; override with LIVEGRAPH_CLIPROXY_URL.
+      CLIPROXY_BASE_URL: ${LIVEGRAPH_CLIPROXY_URL:-http://host.docker.internal:8317/v1}
+      LIVEGRAPH_SIMULATE: ${LIVEGRAPH_SIMULATE:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

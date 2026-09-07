@@ -10,7 +10,7 @@ test:
 
 run:
 	cd apps/live-graph && npm --prefix web run build && \
-		LIVEGRAPH_SIMULATE=1 PYTHONPATH=src .venv/bin/python -m uvicorn livegraph.api.app:app --port 8000
+		PYTHONPATH=src .venv/bin/python -m uvicorn livegraph.api.app:app --port 8000
 
 docker:
 	cd apps/live-graph && docker compose up --build

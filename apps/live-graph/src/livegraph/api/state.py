@@ -13,8 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..agent import AnalystDeps, AnalystService, CoMovementAnalyzer, PriceHistory
-from ..feed import KotakSession, KotakSettings, Segment, Tick
-from ..feed.simulator import SimulatedFeed
+from ..feed import KotakSession, KotakSettings, NoFeed, Segment, Tick
 from ..graph import GraphRepository, NodeType
 from ..paths import data_dir as resolve_data_dir
 from ..news import EntityResolver, NewsItem, NewsPoller
@@ -39,14 +38,14 @@ class FeedStatus:
 
 
 class AppState:
-    def __init__(self, data_dir: Path | None = None, simulate: bool = False):
+    def __init__(self, data_dir: Path | None = None, feed=None):
         resolved = data_dir or resolve_data_dir()
         self.repo = GraphRepository.from_file(resolved / "stock_graph.json")
         self.history = PriceHistory()
         self.comovement = CoMovementAnalyzer(self.history)
         self.sandbox = PyodideSandbox()
         self.news = self._build_news(resolved)
-        self.feed, self.feed_mode, self.feed_detail = self._build_feed(simulate)
+        self.feed, self.feed_mode, self.feed_detail = self._resolve_feed(feed)
         self.kotak_session: "KotakSession | None" = None
         self._last_history_write = 0.0
         self._subscribers: list = []
@@ -77,33 +76,30 @@ class AppState:
             is_fo=lambda node_id: bool((n := self.repo.get(node_id)) and n.fo),
         )
 
-    def _build_feed(self, simulate: bool):
-        """Live Kotak when credentials are present, otherwise the simulator.
+    def _resolve_feed(self, injected):
+        """Live Kotak, or nothing at all.
 
-        The mode is surfaced to the client so a simulated price is never shown
-        as a real one.
+        There is deliberately no synthetic fallback. A feed that invents prices
+        can be mistaken for the market, and every screen here is built to be
+        acted on. When credentials are absent or a login fails the app runs with
+        no prices and says why, rather than showing numbers that are not real.
         """
-        settings = KotakSettings()
-        if simulate or not settings.is_configured:
-            missing = ", ".join(settings.missing_fields())
-            detail = (
-                "simulator requested"
-                if simulate
-                else f"Kotak credentials incomplete: {missing}"
-            )
-            logger.warning("Using simulated feed (%s)", detail)
-            return self._simulated_feed(), "simulated", detail
-        return self._live_feed(settings)
+        if injected is not None:
+            return injected, "injected", "feed supplied by the caller"
 
-    def _simulated_feed(self) -> SimulatedFeed:
-        stocks = [n for n in self.repo.nodes_of_type(NodeType.STOCK) if n.fo]
-        return SimulatedFeed(
-            symbols=[n.id for n in stocks],
-            sectors={n.id: n.sector or "Unknown" for n in stocks},
-            peer_groups={
-                n.id: (n.peer_groups[0] if n.peer_groups else "NONE") for n in stocks
-            },
-        )
+        settings = KotakSettings()
+        missing = settings.missing_fields()
+        if missing:
+            detail = f"Kotak credentials incomplete: {', '.join(missing)}"
+            logger.warning("%s; running without prices", detail)
+            return NoFeed(detail), "unconfigured", detail
+
+        try:
+            return self._live_feed(settings)
+        except Exception as exc:  # noqa: BLE001 - startup must survive a bad login
+            detail = f"Kotak login failed: {exc}"
+            logger.error(detail)
+            return NoFeed(detail), "error", detail
 
     def _live_feed(self, settings: KotakSettings):
         from ..feed import KotakSession, TickStream, nearest_expiry_per_underlying, parse_instruments
@@ -234,10 +230,10 @@ class AppState:
             logger.exception("Kotak login failed")
             return False, f"Login failed: {exc}"
 
-        if self.feed_mode == "simulated":
+        if self.feed_mode != "live":
             return True, (
-                "Session established. The feed is still simulated for this process; "
-                "restart the app to stream live prices."
+                "Session established. This process started without a feed, so restart "
+                "the app to begin streaming prices."
             )
         return True, "Session established."
 

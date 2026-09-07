@@ -31,7 +31,7 @@ tick feed and the UI, and hosts the strategy sandbox in-process. Nothing mounts
 the Docker socket and no sibling containers are started.
 
 ```bash
-cp .env.example .env      # optional; without it the simulated feed is used
+./scripts/setup-kotak.sh  # fills .env with echo off; nothing is printed
 docker compose up --build
 ```
 
@@ -59,7 +59,15 @@ actually imports at working versions. The Dockerfile does this already.
 
 ### Kotak credentials
 
-Streaming needs more than the REST `access_token`. Fill these in `.env`:
+Streaming needs more than the REST `access_token`. Two helpers fill `.env`,
+both reading with terminal echo off so nothing reaches your scrollback:
+
+```bash
+./scripts/import-kotak-from-smap.sh   # recover what the old platform stored
+./scripts/setup-kotak.sh              # enter the rest by hand
+```
+
+The fields:
 
 | Variable | Where it comes from |
 |---|---|
@@ -137,13 +145,23 @@ PYTHONPATH=src .venv/bin/python -m pytest tests/ -q
 Tests marked `sandbox` need Node and the worker's `node_modules`; they skip
 cleanly without them.
 
-## Simulated mode
+## There is no synthetic feed
 
-Without Kotak credentials the app runs on a synthetic feed so the UI and API
-are usable offline and out of market hours. Moves are correlated within a peer
-group and again within a sector, with mean reversion so the series does not
-drift onto its clamp. Every response carries `mode: "simulated"` and the header
-shows an amber badge, so a generated price can never be read as a real one.
+Prices come from Kotak or they do not come at all. An invented price on a
+screen built to be acted on is worse than an empty screen, so without working
+credentials the app starts, serves the graph and the admin page, and shows no
+prices. `FeedStatus.mode` says which state it is in:
+
+| mode | meaning |
+|---|---|
+| `live` | streaming from Kotak Neo |
+| `unconfigured` | credentials missing; the detail names which |
+| `error` | credentials present, login failed; the detail carries the reason |
+| `injected` | a feed was supplied by the caller, which only tests do |
+
+The test suite supplies its own deterministic feed from `tests/fake_feed.py`.
+It lives there rather than in the application on purpose: a synthetic feed the
+product can start with by accident is exactly the failure this avoids.
 
 ## The scan
 
@@ -205,9 +223,8 @@ marked low confidence and the sample count is always shown.
 
 ## Status
 
-Working: `graph`, `news`, `scratchpad`, `agent`, `api`, and the UI, all against
-the simulated feed.
+Working: `graph`, `news`, `scratchpad`, `scan`, `agent`, `api` and the UI.
 
-Unverified: `feed` against a live Kotak session, which needs the credentials
-above and an open market. The pure parts (symbol mapping, tick normalisation)
-are tested; the login and socket path is not.
+Unverified: the live Kotak path. Symbol mapping, tick normalisation and
+nearest-expiry selection are tested; the TOTP login and socket subscribe are
+not, because they need real credentials and an open market.

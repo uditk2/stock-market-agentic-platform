@@ -16,6 +16,8 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
+from fake_feed import FakeFeed
+
 from livegraph.api import create_app
 from livegraph.feed.config import KotakSettings
 from livegraph.feed.totp import TOTP_PERIOD_SECONDS, TotpError, current_code
@@ -25,7 +27,7 @@ SECRET = "JBSWY3DPEHPK3PXP"
 
 @pytest.fixture(scope="module")
 def client():
-    with TestClient(create_app(simulate=True)) as c:
+    with TestClient(create_app(feed=FakeFeed([("INFY", 1500.0, -1.0)]))) as c:
         yield c
 
 
@@ -104,7 +106,7 @@ def test_broker_status_never_returns_credential_values(client):
 
 def test_broker_status_reports_the_feed_mode(client):
     body = client.get("/api/admin/broker").json()
-    assert body["feed_mode"] == "simulated"
+    assert body["feed_mode"] == "injected"
     assert body["session_active"] is False
 
 

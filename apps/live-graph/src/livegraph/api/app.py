@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 
@@ -22,12 +21,12 @@ logger = logging.getLogger(__name__)
 ALLOWED_ORIGIN_REGEX = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
 
-def create_app(simulate: bool | None = None) -> FastAPI:
-    resolved = _resolve_simulate(simulate)
+def create_app(feed=None) -> FastAPI:
+    """`feed` is a seam for tests; in normal use the feed comes from .env."""
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        state = AppState(simulate=resolved)
+        state = AppState(feed=feed)
         app.state.livegraph = state
         state.start()
         logger.info("feed mode=%s (%s)", state.feed_mode, state.feed_detail)
@@ -63,11 +62,6 @@ def create_app(simulate: bool | None = None) -> FastAPI:
     mount_ui(app)
     return app
 
-
-def _resolve_simulate(simulate: bool | None) -> bool:
-    if simulate is not None:
-        return simulate
-    return os.environ.get("LIVEGRAPH_SIMULATE", "").lower() in {"1", "true", "yes"}
 
 
 app = create_app()

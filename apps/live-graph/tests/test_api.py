@@ -1,7 +1,7 @@
 """Regressions guarded here:
 
-- The feed mode must always reach the client. A simulated price rendered as a
-  live one is the single most dangerous defect in this app.
+- The feed mode must always reach the client, so a screen with no prices is
+  never mistaken for a quiet market.
 - /api/graph must drop IN_SECTOR edges when sector hubs are excluded, otherwise
   the payload carries edges pointing at nodes it did not send and the UI
   renders dangling links.
@@ -9,19 +9,32 @@
   per tick, or a 200-symbol universe floods the browser.
 """
 
-import time
-
 import pytest
 from fastapi.testclient import TestClient
+
+from fake_feed import FakeFeed
 
 from livegraph.api import create_app
 
 
+#: A small, deterministic universe spanning three sectors.
+MOVES = [
+    ("HDFCBANK", 1650.0, 1.31), ("ICICIBANK", 1180.0, 1.24), ("AXISBANK", 1090.0, 1.18),
+    ("KOTAKBANK", 1750.0, 1.10), ("SBIN", 820.0, 0.95),
+    ("TATAPOWER", 914.84, -1.77), ("NTPC", 388.15, -1.21), ("POWERGRID", 292.40, -1.18),
+    ("INFY", 1500.0, -1.00), ("TCS", 3200.0, -1.20), ("WIPRO", 242.0, -0.90),
+    ("RELIANCE", 1400.0, 2.00),
+]
+
+
 @pytest.fixture(scope="module")
-def client():
-    with TestClient(create_app(simulate=True)) as c:
-        #: The simulator needs a couple of intervals before anything is priced.
-        time.sleep(6)
+def feed():
+    return FakeFeed(MOVES)
+
+
+@pytest.fixture(scope="module")
+def client(feed):
+    with TestClient(create_app(feed=feed)) as c:
         yield c
 
 
@@ -29,15 +42,29 @@ def test_health_reports_graph_and_feed(client):
     body = client.get("/api/health").json()
     assert body["ok"] is True
     assert body["graph"] == {"nodes": 545, "edges": 3003}
-    assert body["feed"]["mode"] == "simulated"
+    assert body["feed"]["mode"] == "injected"
 
 
 def test_feed_mode_is_always_disclosed(client):
-    """A simulated price must never be presentable as live."""
+    """The client must always be able to tell where prices came from."""
     status = client.get("/api/market/status").json()
-    assert status["mode"] == "simulated"
+    assert status["mode"] == "injected"
     assert status["connected"] is True
-    assert status["symbols_priced"] > 0
+    assert status["symbols_priced"] == len(MOVES)
+
+
+def test_without_credentials_there_is_no_feed_and_the_reason_is_given():
+    """Regression: the app used to fall back to synthetic prices.
+
+    Invented prices on a screen built to be acted on are worse than no prices,
+    so an unconfigured app must show none and say why.
+    """
+    with TestClient(create_app()) as bare:
+        status = bare.get("/api/market/status").json()
+        assert status["mode"] == "unconfigured"
+        assert status["symbols_priced"] == 0
+        assert "credentials incomplete" in status["detail"]
+        assert bare.get("/api/market/quotes").json() == []
 
 
 def test_quotes_are_priced_and_typed(client):
@@ -95,66 +122,24 @@ def test_scratchpad_health_reports_the_sandbox(client):
     assert "sandbox_available" in body
 
 
-def test_websocket_sends_a_snapshot_then_coalesced_batches(client):
+def test_websocket_sends_a_snapshot_then_coalesced_batches(client, feed):
     with client.websocket_connect("/ws/ticks") as ws:
         first = ws.receive_json()
         assert first["type"] == "snapshot"
-        assert len(first["ticks"]) > 0
+        assert len(first["ticks"]) == len(MOVES)
+
+        #: Several updates for one symbol inside a single flush window must
+        #: arrive as one entry, not three frames.
+        for price in (1651.0, 1652.0, 1653.0):
+            feed.emit("HDFCBANK", price, 1.35)
 
         batch = ws.receive_json()
         assert batch["type"] == "ticks"
         symbols = [t["symbol"] for t in batch["ticks"]]
-        #: One entry per symbol per flush, never one frame per tick.
         assert len(symbols) == len(set(symbols))
+        assert "HDFCBANK" in symbols
+        assert next(t for t in batch["ticks"] if t["symbol"] == "HDFCBANK")["ltp"] == 1653.0
 
 
-def test_simulated_moves_do_not_park_on_the_clamp():
-    """Regression: a pure random walk drifted to +/-9% and stayed there.
-
-    Once every symbol pins to the clamp, the divergence scan has no spread left
-    to measure and the whole app looks broken in demo mode.
-    """
-    from livegraph.feed.simulator import SimulatedFeed
-
-    symbols = [f"S{i}" for i in range(40)]
-    feed = SimulatedFeed(
-        symbols=symbols,
-        sectors={s: "Sector" for s in symbols},
-        peer_groups={s: "Group" for s in symbols},
-        interval_seconds=0.01,
-    )
-    for _ in range(4000):
-        feed._step()
-
-    changes = [abs(tick.change_pct) for tick in feed.snapshot().values()] or [
-        abs(v) for v in feed._change.values()
-    ]
-    pinned = sum(1 for c in changes if c >= 8.9)
-    assert pinned == 0, f"{pinned}/{len(changes)} symbols parked on the clamp"
 
 
-def test_simulated_feed_produces_idiosyncratic_moves():
-    """Regression: a purely sector-driven simulator made the scan useless.
-
-    With every move driven by sector and peer factors, the peer gap was always
-    tiny and the verdict was always "sector-wide", so a correct classifier
-    looked broken. Some names must break away from their own peer group.
-    """
-    import statistics
-
-    from livegraph.feed.simulator import SimulatedFeed
-
-    symbols = [f"S{i}" for i in range(60)]
-    feed = SimulatedFeed(
-        symbols=symbols,
-        sectors={s: "Sector" for s in symbols},
-        peer_groups={s: "Group" for s in symbols},
-        interval_seconds=0.01,
-    )
-    for _ in range(600):
-        feed._step()
-
-    moves = [t.change_pct for t in feed.snapshot().values()]
-    mean = statistics.fmean(moves)
-    gaps = [abs(m - mean) for m in moves]
-    assert max(gaps) > 0.75, f"no name broke away from the group; widest gap {max(gaps):.2f}pp"

@@ -1,14 +1,16 @@
 "use client";
 
-import { Activity, AlertTriangle, FlaskConical } from "lucide-react";
+import { Activity, AlertTriangle, PlugZap } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { FeedStatus } from "@/lib/api";
 
 /**
- * Whether prices are real is the most important fact on the page, so it is
+ * Where prices came from is the most important fact on the page, so it is
  * stated permanently in the header rather than buried in a settings view.
+ * There is no synthetic feed: when Kotak is not connected the app shows no
+ * prices, and this badge says why.
  */
 export function FeedBadge({
   status,
@@ -21,33 +23,34 @@ export function FeedBadge({
     return <Badge variant="outline" className="gap-1.5">Connecting…</Badge>;
   }
 
-  const simulated = status.mode === "simulated";
-  const label = simulated ? "Simulated data" : "Live · Kotak Neo";
+  const live = status.mode === "live";
+  const label =
+    status.mode === "live"
+      ? "Live · Kotak Neo"
+      : status.mode === "unconfigured"
+        ? "No feed · not configured"
+        : status.mode === "error"
+          ? "No feed · login failed"
+          : "Test feed";
 
   return (
     <div className="flex items-center gap-2">
       <Tooltip>
         <TooltipTrigger asChild>
           <Badge
-            variant={simulated ? "secondary" : "default"}
+            variant={live ? "default" : "secondary"}
             className={
-              simulated
-                ? "gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                : "gap-1.5 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+              live
+                ? "gap-1.5 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                : "gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
             }
           >
-            {simulated ? (
-              <FlaskConical className="size-3" />
-            ) : (
-              <Activity className="size-3" />
-            )}
+            {live ? <Activity className="size-3" /> : <PlugZap className="size-3" />}
             {label}
           </Badge>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs">
-          {simulated
-            ? `These prices are generated, not real. ${status.detail}`
-            : status.detail}
+          {live ? status.detail : `${status.detail}. Configure Kotak in the Admin tab.`}
         </TooltipContent>
       </Tooltip>
 

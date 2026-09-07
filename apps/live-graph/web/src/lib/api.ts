@@ -13,7 +13,7 @@
 const CONFIGURED = process.env.NEXT_PUBLIC_API_URL ?? "";
 const BASE = CONFIGURED || (typeof window === "undefined" ? "" : window.location.origin);
 
-export type FeedMode = "live" | "simulated";
+export type FeedMode = "live" | "unconfigured" | "error" | "injected";
 
 export interface FeedStatus {
   mode: FeedMode;

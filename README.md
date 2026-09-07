@@ -14,8 +14,9 @@ cd apps/live-graph
 docker compose up --build
 ```
 
-Then open http://localhost:8000. Without Kotak credentials the app starts on a
-simulated feed and says so, in an amber badge, on every screen.
+Then open http://localhost:8000. Without Kotak credentials the app still runs,
+serving the graph and the admin page, but shows no prices and says why. There
+is no synthetic feed.
 
 From source instead:
 

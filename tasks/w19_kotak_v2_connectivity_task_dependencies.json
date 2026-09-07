@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {"id": "W19-1", "name": "Connector foundation (endpoint candidates + request helper)", "depends_on": []},
+    {"id": "W19-2", "name": "Credential verification fallback + failure classification", "depends_on": ["W19-1"]},
+    {"id": "W19-3", "name": "Market fetch fallback for scrip-master + quotes", "depends_on": ["W19-1"]},
+    {"id": "W19-4", "name": "Unit tests for fallback/auth/timeout behavior", "depends_on": ["W19-2", "W19-3"]},
+    {"id": "W19-5", "name": "Run service tests and report", "depends_on": ["W19-4"]}
+  ]
+}

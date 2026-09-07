@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {"id": "W4-1", "name": "Add PTY session manager in desktop main process", "depends_on": []},
+    {"id": "W4-2", "name": "Add safe command profile gating + advanced mode policy", "depends_on": ["W4-1"]},
+    {"id": "W4-3", "name": "Expose terminal IPC bridge in preload", "depends_on": ["W4-2"]},
+    {"id": "W4-4", "name": "Implement renderer terminal panel UX", "depends_on": ["W4-3"]},
+    {"id": "W4-5", "name": "Add tests and verify full suite", "depends_on": ["W4-4"]}
+  ]
+}

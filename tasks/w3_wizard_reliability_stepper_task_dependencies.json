@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {"id": "WR1", "name": "Reproduce CLI check and provider availability failures locally", "depends_on": []},
+    {"id": "WR2", "name": "Patch CLI check engine for current command compatibility + subscription scope", "depends_on": ["WR1"]},
+    {"id": "WR3", "name": "Patch renderer provider load retry and wizard stepper Next flow", "depends_on": ["WR1", "WR2"]},
+    {"id": "WR4", "name": "Run desktop/service tests and validate behavior", "depends_on": ["WR3"]},
+    {"id": "WR5", "name": "Push changes and monitor CI matrix to green", "depends_on": ["WR4"]}
+  ]
+}

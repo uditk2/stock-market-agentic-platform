@@ -1,0 +1,29 @@
+{
+  "tasks": [
+    {
+      "id": "WI1",
+      "name": "Model subscription ownership and CLI target install policy",
+      "depends_on": []
+    },
+    {
+      "id": "WI2",
+      "name": "Implement main-process install-plan module with validation",
+      "depends_on": ["WI1"]
+    },
+    {
+      "id": "WI3",
+      "name": "Expose install-plan IPC and preload bridge methods",
+      "depends_on": ["WI2"]
+    },
+    {
+      "id": "WI4",
+      "name": "Add renderer wizard subscription/install controls and terminal-assisted execution",
+      "depends_on": ["WI3"]
+    },
+    {
+      "id": "WI5",
+      "name": "Run desktop and service suites, then push and monitor CI",
+      "depends_on": ["WI4"]
+    }
+  ]
+}

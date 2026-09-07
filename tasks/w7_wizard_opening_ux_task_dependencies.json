@@ -1,0 +1,29 @@
+{
+  "tasks": [
+    {
+      "id": "WU1",
+      "name": "Diagnose opening-screen dropdown behavior",
+      "depends_on": []
+    },
+    {
+      "id": "WU2",
+      "name": "Adjust lock policy to keep provider discovery controls active",
+      "depends_on": ["WU1"]
+    },
+    {
+      "id": "WU3",
+      "name": "Add provider empty/error fallback option states",
+      "depends_on": ["WU1"]
+    },
+    {
+      "id": "WU4",
+      "name": "Run desktop and service suites and verify no regressions",
+      "depends_on": ["WU2", "WU3"]
+    },
+    {
+      "id": "WU5",
+      "name": "Push changes and monitor CI installer matrix to green",
+      "depends_on": ["WU4"]
+    }
+  ]
+}

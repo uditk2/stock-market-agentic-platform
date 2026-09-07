@@ -1,0 +1,8 @@
+{
+  "tasks": [
+    {"id": "D1", "name": "Patch workflow upload paths by OS", "depends_on": []},
+    {"id": "D2", "name": "Update project design/blueprint/tasks docs", "depends_on": ["D1"]},
+    {"id": "D3", "name": "Validate workflow and local git state", "depends_on": ["D1", "D2"]},
+    {"id": "D4", "name": "Push + run CI and share mac DMG artifact", "depends_on": ["D3"]}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "tasks": [
+    {"id": "W3-1", "name": "Implement CLI check engine for install version auth probes", "depends_on": []},
+    {"id": "W3-2", "name": "Expose wizard checks via preload IPC", "depends_on": ["W3-1"]},
+    {"id": "W3-3", "name": "Add mandatory wizard UI and workspace lock gating", "depends_on": ["W3-2"]},
+    {"id": "W3-4", "name": "Add unit tests and run desktop plus service suites", "depends_on": ["W3-3"]},
+    {"id": "W3-5", "name": "Sync docs and GitHub issue state", "depends_on": ["W3-4"]}
+  ]
+}

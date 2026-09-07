@@ -1,0 +1,8 @@
+{
+  "tasks": [
+    {"id": "P1", "name": "Patch CLI PATH-aware detection", "depends_on": []},
+    {"id": "P2", "name": "Patch locked-state provider/service controls", "depends_on": ["P1"]},
+    {"id": "P3", "name": "Run desktop tests", "depends_on": ["P1", "P2"]},
+    {"id": "P4", "name": "Push and verify CI", "depends_on": ["P3"]}
+  ]
+}

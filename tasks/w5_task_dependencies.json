@@ -1,0 +1,39 @@
+{
+  "tasks": [
+    {
+      "id": "W5-T1",
+      "title": "Define cross-platform service template contract",
+      "depends_on": []
+    },
+    {
+      "id": "W5-T2",
+      "title": "Implement template renderer module + unit tests",
+      "depends_on": ["W5-T1"]
+    },
+    {
+      "id": "W5-T3",
+      "title": "Add Linux systemd user install/uninstall scripts",
+      "depends_on": ["W5-T2"]
+    },
+    {
+      "id": "W5-T4",
+      "title": "Add macOS launchd install/uninstall scripts",
+      "depends_on": ["W5-T2"]
+    },
+    {
+      "id": "W5-T5",
+      "title": "Add Windows Task Scheduler install/uninstall scripts",
+      "depends_on": ["W5-T2"]
+    },
+    {
+      "id": "W5-T6",
+      "title": "Document usage and update planning artifacts",
+      "depends_on": ["W5-T3", "W5-T4", "W5-T5"]
+    },
+    {
+      "id": "W5-T7",
+      "title": "Run desktop+service test suites and finalize",
+      "depends_on": ["W5-T6"]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "tasks": [
+    {"id": "T1", "title": "Confirm root cause", "depends_on": []},
+    {"id": "T2", "title": "Prepare issue-ready task", "depends_on": ["T1"]},
+    {"id": "T3", "title": "One-time storage cleanup", "depends_on": ["T2"]},
+    {"id": "T4", "title": "Add scheduled retention workflow", "depends_on": ["T2"]},
+    {"id": "T5", "title": "Validate workflow", "depends_on": ["T3", "T4"]},
+    {"id": "T6", "title": "Commit/push/notify", "depends_on": ["T5"]}
+  ]
+}

@@ -44,7 +44,7 @@ uv venv --python 3.13 .venv
 uv pip install -e ".[dev,kotak]"
 npm --prefix web install && npm --prefix web run build
 npm --prefix src/livegraph/scratchpad/sandbox/worker install
-LIVEGRAPH_SIMULATE=1 .venv/bin/python -m uvicorn livegraph.api.app:app --app-dir src --port 8000
+.venv/bin/python -m uvicorn livegraph.api.app:app --app-dir src --port 8000
 ```
 
 The Kotak Neo SDK supports Python 3.10 to 3.13, so 3.13 is pinned deliberately.

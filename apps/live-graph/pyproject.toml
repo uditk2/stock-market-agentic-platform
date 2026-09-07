@@ -22,8 +22,8 @@ dependencies = [
 #   pip install --no-deps "neo_api_client @ git+https://github.com/Kotak-Neo/Kotak-neo-api-v2.git@v2.0.2"
 #   pip install requests websocket-client pyjwt bidict python-dateutil six pyjsparser
 #
-# The Dockerfile does exactly this. Without it the app still runs; the live
-# Kotak feed is unavailable and the simulated feed is used instead.
+# The Dockerfile does exactly this. Without it the app still runs, but the live
+# Kotak feed is unavailable and so there are no prices.
 [project.optional-dependencies]
 
 dev = ["pytest>=8.3", "pytest-asyncio>=0.24"]

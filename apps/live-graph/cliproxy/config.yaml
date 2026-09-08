@@ -1,0 +1,24 @@
+# CLIProxyAPI, as the `local-proxy` compose profile runs it.
+#
+# This is the whole configuration the app needs. Everything else in the
+# upstream config.example.yaml is left at its default deliberately: the fewer
+# knobs set here, the fewer there are to drift from what upstream expects.
+#
+# First run, once the container is up:
+#
+#   docker compose --profile local-proxy exec cliproxy ./CLIProxyAPI -claude-login
+#   docker compose --profile local-proxy exec cliproxy ./CLIProxyAPI -codex-device-login
+#
+# Each opens an OAuth flow against your existing subscription; no provider API
+# key is involved. The resulting tokens land in the cliproxy-auths volume and
+# survive rebuilds. The control panel at http://localhost:8317/management.html
+# does the same thing from a browser.
+
+port: 8317
+auth-dir: "/root/.cli-proxy-api"
+
+# The key livegraph sends as CLIPROXY_API_KEY. It authenticates callers to this
+# proxy and is not a provider credential, but it does gate access to your
+# subscriptions, so change it before running anywhere you do not control.
+api-keys:
+  - "livegraph-local-change-me"

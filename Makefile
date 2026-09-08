@@ -1,4 +1,4 @@
-.PHONY: install test run docker
+.PHONY: install test run docker proxy
 
 install:
 	cd apps/live-graph && uv venv --python 3.13 .venv && uv pip install -e ".[dev,kotak]"
@@ -14,3 +14,8 @@ run:
 
 docker:
 	cd apps/live-graph && docker compose up --build
+
+# A CLIProxyAPI of your own, for a machine that has none. Skip it if one is
+# already running; see apps/live-graph/README.md#a-proxy-of-your-own.
+proxy:
+	cd apps/live-graph && docker compose --profile local-proxy up --build cliproxy

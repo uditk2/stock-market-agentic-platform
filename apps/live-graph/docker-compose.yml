@@ -10,10 +10,40 @@ services:
       - path: .env
         required: false
     environment:
-      # CLIProxyAPI runs on the host, so "localhost" would resolve to this
-      # container. The .env value is for running from source and is
-      # deliberately NOT reused here; override with LIVEGRAPH_CLIPROXY_URL.
+      # Default to a proxy on the host, because that is the common case: one
+      # CLIProxyAPI shared by several projects. "localhost" would resolve to
+      # this container, so the .env value is deliberately NOT reused here.
+      #
+      # This address serves the local-proxy profile too, without a second
+      # setting: the sidecar publishes 8317 to the host, so host.docker.internal
+      # reaches it by the same route it reaches a proxy you started yourself.
       CLIPROXY_BASE_URL: ${LIVEGRAPH_CLIPROXY_URL:-http://host.docker.internal:8317/v1}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+  # A proxy of your own, for a machine that has none:
+  #
+  #   docker compose --profile local-proxy up --build
+  #
+  # Opt-in rather than default, because CLIProxyAPI holds OAuth grants for your
+  # Claude and Codex subscriptions. Two instances signed into the same account
+  # keep two token stores and refresh them independently, which can invalidate
+  # each other. If you already run one, leave this profile off and point
+  # LIVEGRAPH_CLIPROXY_URL at it.
+  cliproxy:
+    profiles: ["local-proxy"]
+    image: eceasy/cli-proxy-api:latest
+    ports:
+      # Published so `-claude-login` can finish its OAuth callback in your
+      # browser, and so the control panel is reachable at :8317/management.html.
+      - "8317:8317"
+    volumes:
+      - ./cliproxy/config.yaml:/CLIProxyAPI/config.yaml:ro
+      # The OAuth tokens. A named volume, never the image: these are long-lived
+      # credentials for your personal subscriptions.
+      - cliproxy-auths:/root/.cli-proxy-api
+    restart: unless-stopped
+
+volumes:
+  cliproxy-auths:

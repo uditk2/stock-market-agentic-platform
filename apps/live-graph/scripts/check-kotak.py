@@ -7,6 +7,11 @@ same path in stages and names the first one that fails, so a bad MPIN is
 distinguishable from a clock skew, an unregistered TOTP, or a market that is
 simply closed.
 
+No TOTP secret is needed. Kotak's API takes the six-digit code, never the
+secret; storing the secret is only how the app logs itself back in each
+morning. If no usable secret is configured this asks for the code, which is
+also the only route open when a stored secret turns out to be wrong.
+
 It deliberately goes through `livegraph.feed` rather than the SDK directly.
 Testing a parallel implementation would prove the SDK works while leaving open
 the question this is actually asked to answer: will the app work.
@@ -14,6 +19,7 @@ the question this is actually asked to answer: will the app work.
     ./scripts/check-kotak.py                 # use .env and the admin store
     ./scripts/check-kotak.py --prompt        # type missing values, in memory only
     ./scripts/check-kotak.py --save          # ...and write them to the store
+    ./scripts/check-kotak.py --totp 123456   # supply the code non-interactively
     ./scripts/check-kotak.py --seconds 30    # watch the socket for longer
     ./scripts/check-kotak.py --skip-socket   # stop after the REST checks
 
@@ -103,34 +109,26 @@ def main() -> int:
     with Stage(2, "Credentials resolve"):
         settings = resolve_credentials(options)
         report_fields(settings)
-        missing = settings.missing_fields()
+        #: The secret only exists to derive a code unattended. This script has a
+        #: person sitting at it, so it can ask for the six digits instead and
+        #: needs the other four.
+        missing = [f for f in settings.missing_fields() if f != "totp_secret"]
         if missing:
             raise RuntimeError(
                 f"missing or placeholder: {', '.join(missing)}. "
                 "Re-run with --prompt, use the Admin tab, or ./scripts/setup-kotak.sh"
             )
-        print(f"{PASS} all five present")
+        print(f"{PASS} the four required credentials are present")
+        warn_about_shapes(settings)
 
-    with Stage(3, "TOTP derives from the stored secret"):
-        from livegraph.feed.totp import current_code
-
-        code = current_code(settings.totp_secret)
-        if code.expires_in < MIN_TOTP_SECONDS:
-            #: A code still valid when sent can expire before Kotak checks it,
-            #: which comes back as "invalid TOTP" and reads like a wrong secret.
-            #: `about_to_rotate` allows 3s, which is fine for showing a code on
-            #: screen and too tight for a login over the network.
-            print(f"{INFO} {code.expires_in}s left on this code, waiting for the next")
-            time.sleep(code.expires_in + 1)
-            code = current_code(settings.totp_secret)
-        print(f"{PASS} current code {code.code}, rotates in {code.expires_in}s")
-        print(f"{INFO} check this matches your authenticator app right now")
+    with Stage(3, "A TOTP code is available"):
+        totp = resolve_totp(settings, options)
 
     with Stage(4, "Login: totp_login then totp_validate"):
         from livegraph.feed import KotakSession
 
         session = KotakSession(settings)
-        client = session.login()
+        client = session.login(totp=totp)
         print(f"{PASS} session established for UCC ending {settings.ucc[-3:]}")
 
     with Stage(5, "Scrip master downloads and parses"):
@@ -210,8 +208,82 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--seconds", type=int, default=15, help="how long to watch the socket (default 15)",
     )
+    parser.add_argument(
+        "--totp", metavar="CODE",
+        help="the six-digit code, instead of deriving it or being asked",
+    )
     parser.add_argument("--skip-socket", action="store_true", help="stop after the REST checks")
     return parser.parse_args()
+
+
+def warn_about_shapes(settings) -> None:
+    """Catch the two values that are usually the wrong thing entirely.
+
+    Both survive every presence check and fail at Kotak as an unexplained
+    rejection, which is the failure this script exists to prevent.
+    """
+    mobile = (settings.mobile_number or "").strip()
+    if mobile.isdigit() and not mobile.startswith("+") and len(mobile) <= 10:
+        print(f"{WARN} mobile_number has no country code. Kotak expects +91XXXXXXXXXX;")
+        print(f"{WARN} a bare ten-digit number is rejected at totp_login.")
+
+    secret = (settings.totp_secret or "").strip()
+    if secret.isdigit() and len(secret) == 6:
+        #: Base32 has no 0, 1, 8 or 9, so six digits is a code far more often
+        #: than it is a secret — and a code goes stale thirty seconds later.
+        print(f"{WARN} totp_secret looks like a six-digit code, not the base32 secret.")
+        print(f"{WARN} The secret is the long string from the QR registration and is")
+        print(f"{WARN} set once. This run will ask for a code instead; to store the")
+        print(f"{WARN} secret properly, clear that field and use --prompt.")
+
+
+def resolve_totp(settings, options: argparse.Namespace) -> str:
+    """The six digits to log in with: given, derived, or read off a phone.
+
+    Kotak's API takes the code, never the secret. Storing the secret is how the
+    app logs itself back in each morning; a person running this can simply look
+    at their authenticator, which is also the only route open when the stored
+    secret is wrong — the failure that most often brings someone here.
+    """
+    from livegraph.feed.totp import TotpError, current_code
+
+    if options.totp:
+        print(f"{PASS} using the code passed on the command line")
+        return options.totp
+
+    if settings.totp_secret and "totp_secret" not in settings.missing_fields():
+        try:
+            code = current_code(settings.totp_secret)
+        except TotpError as exc:
+            print(f"{WARN} stored secret unusable: {exc}")
+            return ask_for_totp()
+        if code.expires_in < MIN_TOTP_SECONDS:
+            #: A code still valid when sent can expire before Kotak checks it,
+            #: which comes back as "invalid TOTP" and reads like a wrong secret.
+            #: `about_to_rotate` allows 3s, which suits showing a code on screen
+            #: rather than spending one on a round trip.
+            print(f"{INFO} {code.expires_in}s left on this code, waiting for the next")
+            time.sleep(code.expires_in + 1)
+            code = current_code(settings.totp_secret)
+        print(f"{PASS} derived {code.code} from the stored secret, rotates in {code.expires_in}s")
+        print(f"{INFO} if this does not match your authenticator, the secret is wrong")
+        return code.code
+
+    print(f"{INFO} no usable TOTP secret stored, so the code has to be typed")
+    return ask_for_totp()
+
+
+def ask_for_totp() -> str:
+    """Read the code from the authenticator app.
+
+    Not hidden input: it is six digits that expire in under thirty seconds, and
+    being able to see a typo matters more than keeping it out of the scrollback.
+    """
+    while True:
+        entered = input("    six-digit code from your authenticator: ").strip().replace(" ", "")
+        if entered.isdigit() and len(entered) == 6:
+            return entered
+        print(f"{WARN} that is not six digits; try again")
 
 
 def resolve_credentials(options: argparse.Namespace):
@@ -226,7 +298,14 @@ def resolve_credentials(options: argparse.Namespace):
     for name in KotakSettings.REQUIRED:
         if name not in settings.missing_fields():
             continue
-        value = getpass.getpass(f"    {name} (hidden, blank to skip): ").strip()
+        #: Storing the secret is what lets the app re-login by itself each day.
+        #: Declining is a real choice, not a skipped step, so say what it costs.
+        note = (
+            "blank to type a code each run instead"
+            if name == "totp_secret"
+            else "blank to skip"
+        )
+        value = getpass.getpass(f"    {name} (hidden, {note}): ").strip()
         if value:
             typed[name] = value
 

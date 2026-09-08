@@ -110,3 +110,47 @@ def test_unknown_token_is_dropped(normalizer):
 def test_falls_back_to_trading_symbol_when_token_unknown(normalizer):
     ticks = normalizer.normalize_message({"ts": "RELIANCE25SEPFUT", "ltp": 1400.0})
     assert ticks[0].underlying == "RELIANCE"
+
+
+def test_a_supplied_totp_makes_the_stored_secret_unnecessary():
+    """The secret is only there to derive a code unattended.
+
+    Someone reading the six digits off their authenticator has supplied the
+    thing the secret would have produced, so demanding the secret as well would
+    block the one login path that needs no stored secret at all.
+    """
+    from livegraph.feed import KotakSession
+    from livegraph.feed.config import KotakSettings
+
+    settings = KotakSettings(
+        consumer_key="k", mobile_number="+919876543210", ucc="ABC12", mpin="1234",
+        totp_secret="",
+    )
+    calls = {}
+
+    class StubClient:
+        def totp_login(self, **kwargs):
+            calls.update(kwargs)
+            return {"data": {"token": "view"}}
+
+        def totp_validate(self, **kwargs):
+            return {"data": {"token": "trade"}}
+
+    session = KotakSession(settings, client_factory=lambda _: StubClient())
+    session.login(totp="123456")
+
+    assert calls["totp"] == "123456"
+    assert session.is_active
+
+
+def test_without_a_secret_or_a_code_the_login_still_refuses():
+    from livegraph.feed import KotakAuthError, KotakSession
+    from livegraph.feed.config import KotakSettings
+
+    settings = KotakSettings(
+        consumer_key="k", mobile_number="+919876543210", ucc="ABC12", mpin="1234",
+        totp_secret="",
+    )
+    session = KotakSession(settings, client_factory=lambda _: object())
+    with pytest.raises(KotakAuthError, match="totp_secret"):
+        session.login()

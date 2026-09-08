@@ -9,6 +9,33 @@ DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
 
 @pytest.fixture(scope="session", autouse=True)
+def no_ambient_kotak_credentials():
+    """Blank the Kotak fields for the whole run, whatever `.env` holds.
+
+    pydantic-settings reads `.env` off disk, so once a developer configures the
+    app for real the tests asserting "nothing is configured" start failing on
+    their machine and nowhere else — and worse, a test that reaches a login
+    path would use live credentials. Environment variables take precedence over
+    the file, and an empty one is still a value, so setting them empty here
+    detaches the suite from whatever is on disk. Tests that want a value set
+    one with monkeypatch, which wins over this.
+    """
+    from livegraph.feed.config import KotakSettings
+
+    saved = {}
+    for field in KotakSettings.REQUIRED:
+        name = f"KOTAK_{field.upper()}"
+        saved[name] = os.environ.get(name)
+        os.environ[name] = ""
+    yield
+    for name, value in saved.items():
+        if value is None:
+            os.environ.pop(name, None)
+        else:
+            os.environ[name] = value
+
+
+@pytest.fixture(scope="session", autouse=True)
 def isolated_state_dir(tmp_path_factory):
     """Point the credential store at a throwaway directory for the whole run.
 

@@ -39,8 +39,19 @@ class KotakSession:
         return self._client is not None
 
     def login(self, totp: str | None = None):
-        """Establish a trading session. Pass `totp` to override the generated code."""
-        missing = self._settings.missing_fields()
+        """Establish a trading session. Pass `totp` to supply the code yourself.
+
+        The stored secret exists so the app can derive a code unattended for the
+        daily re-login. When a caller hands one over there is nothing left to
+        derive, so the secret stops being required — which is what lets a person
+        log in by reading the code off their authenticator instead of teaching
+        the app to generate it.
+        """
+        missing = [
+            field
+            for field in self._settings.missing_fields()
+            if not (totp and field == "totp_secret")
+        ]
         if missing:
             raise KotakAuthError(f"Missing Kotak credentials: {', '.join(missing)}")
 

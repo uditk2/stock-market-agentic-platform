@@ -131,8 +131,19 @@ distinguishable from clock skew, an unregistered TOTP, or a closed market:
 ./scripts/check-kotak.py                # use .env and whatever Admin stored
 ./scripts/check-kotak.py --prompt       # type the missing ones, in memory only
 ./scripts/check-kotak.py --prompt --save   # ...and keep them
+./scripts/check-kotak.py --totp 123456  # supply the code non-interactively
 ./scripts/check-kotak.py --skip-socket  # stop after the REST checks
 ```
+
+**It needs no TOTP secret.** Kotak's API takes the six-digit code, never the
+secret; storing the secret is only how the app logs itself back in each
+morning. With no usable secret configured the script asks for the code, which
+is also the only route open when a stored secret turns out to be wrong.
+
+It also names the two values that are usually the wrong thing entirely — a
+mobile number without its country code, and a six-digit code pasted where the
+base32 secret belongs. Both pass every presence check and fail at Kotak as an
+unexplained rejection.
 
 It goes through `livegraph.feed` rather than the SDK, so a pass means the app
 works rather than that the SDK does, and it prints no credential — fields are

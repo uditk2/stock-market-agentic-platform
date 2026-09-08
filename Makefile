@@ -1,4 +1,4 @@
-.PHONY: install test run docker proxy
+.PHONY: install test run docker proxy check-kotak
 
 install:
 	cd apps/live-graph && uv venv --python 3.13 .venv && uv pip install -e ".[dev,kotak]"
@@ -15,6 +15,11 @@ test:
 run:
 	cd apps/live-graph && npm --prefix web run build && \
 		PYTHONPATH=src .venv/bin/python -m uvicorn livegraph.api.app:app --port 8000
+
+# Walk the Kotak path stage by stage and name the first thing that fails.
+# `make check-kotak ARGS="--prompt --save"` to type missing credentials in.
+check-kotak:
+	cd apps/live-graph && ./scripts/check-kotak.py $(ARGS)
 
 docker:
 	cd apps/live-graph && docker compose up --build

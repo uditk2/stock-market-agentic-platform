@@ -120,6 +120,28 @@ TOTP registration is a one-time manual step at
 https://www.kotaksecurities.com/platform/kotak-neo-trade-api/ (Register for
 TOTP), where you scan a QR into an authenticator app.
 
+### Checking the Kotak path
+
+A failed feed reports one line — `Kotak login failed: ...` — which is enough to
+know something is wrong and not enough to fix it. `./scripts/check-kotak.py`
+runs the same path in stages and names the first that fails, so a wrong MPIN is
+distinguishable from clock skew, an unregistered TOTP, or a closed market:
+
+```bash
+./scripts/check-kotak.py                # use .env and whatever Admin stored
+./scripts/check-kotak.py --prompt       # type the missing ones, in memory only
+./scripts/check-kotak.py --prompt --save   # ...and keep them
+./scripts/check-kotak.py --skip-socket  # stop after the REST checks
+```
+
+It goes through `livegraph.feed` rather than the SDK, so a pass means the app
+works rather than that the SDK does, and it prints no credential — fields are
+reported by presence, length and origin. It re-runs itself under `.venv` and
+normalises the working directory, so it behaves the same from anywhere.
+
+Outside 09:15-15:30 IST the socket connects and stays quiet. That is a pass
+with zero ticks, and the script says so rather than calling it a failure.
+
 ### Model access
 
 Agents talk OpenAI protocol to CLIProxyAPI, which fronts your Claude Code and

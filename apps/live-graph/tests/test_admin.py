@@ -219,8 +219,14 @@ def test_only_known_fields_can_be_written():
 
 
 def test_writes_are_refused_when_no_passphrase_is_configured(client, monkeypatch):
-    """Failing closed: a missing setting is a locked door, not an open one."""
-    monkeypatch.delenv("LIVEGRAPH_ADMIN_PASSWORD", raising=False)
+    """Failing closed: a missing setting is a locked door, not an open one.
+
+    Set empty rather than deleted. The passphrase is read through
+    pydantic-settings, so an unset variable falls through to whatever the
+    developer's own `.env` holds and this would pass or fail by machine; an
+    empty environment variable takes precedence over the file.
+    """
+    monkeypatch.setenv("LIVEGRAPH_ADMIN_PASSWORD", "")
     assert client.get("/api/admin/session").json() == {
         "enabled": False, "authenticated": False,
     }

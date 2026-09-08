@@ -25,11 +25,11 @@ import base64
 import hashlib
 import hmac
 import json
-import os
 import time
 from functools import lru_cache
 
 from fastapi import Cookie, HTTPException
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 COOKIE_NAME = "livegraph_admin"
 #: A trading day, so an operator who logs in at the open is still in at the close.
@@ -93,9 +93,24 @@ def require_admin(token: str | None = Cookie(default=None, alias=COOKIE_NAME)) -
         raise HTTPException(status_code=401, detail="Admin session required.")
 
 
+class AdminSettings(BaseSettings):
+    """Read like every other setting here, which means `.env` counts.
+
+    Reaching into `os.environ` instead was a bug worth naming: pydantic-settings
+    loads `.env` itself without exporting it, so the passphrase worked under
+    compose — which injects real environment variables — and was invisible when
+    running from source, where `.env` is the documented place to put it.
+    """
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    livegraph_admin_password: str = ""
+
+
 def _passphrase() -> str:
-    """Read per call, not at import: tests and .env reloads both change it."""
-    return os.environ.get(_ENV_VAR, "").strip()
+    """Read per call, not at import: an edited `.env` should take effect on a
+    restart of the process, not of the interpreter, and tests change it too."""
+    return AdminSettings().livegraph_admin_password.strip()
 
 
 def _sign(payload: bytes) -> bytes:

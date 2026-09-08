@@ -3,6 +3,7 @@
 from .config import KotakSettings
 from .models import Instrument, Segment, Tick
 from .null_feed import NoFeed
+from .scrip_master import ScripMasterError, load_scrip_master
 from .normalizer import TickNormalizer
 from .session import KotakAuthError, KotakSession
 from .stream import TickStream
@@ -14,11 +15,13 @@ __all__ = [
     "NoFeed",
     "KotakSession",
     "KotakSettings",
+    "ScripMasterError",
     "Segment",
     "Tick",
     "TickNormalizer",
     "TickStream",
     "extract_underlying",
+    "load_scrip_master",
     "nearest_expiry_per_underlying",
     "parse_instruments",
 ]

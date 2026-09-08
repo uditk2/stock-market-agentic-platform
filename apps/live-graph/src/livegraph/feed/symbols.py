@@ -8,7 +8,7 @@ before it can touch a graph node.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from .models import Instrument, Segment
 
@@ -17,9 +17,17 @@ _OPT_ROOT_RE = re.compile(r"^([A-Z&\-]+?)(\d{2}[A-Z]{3})(\d+)(CE|PE)$")
 
 _TOKEN_KEYS = ("pSymbol", "instrument_token", "token", "pToken")
 _LABEL_KEYS = ("pTrdSymbol", "trading_symbol", "symbol", "pSymbolName")
-_LOT_KEYS = ("lot_size", "lotsize", "lotSize", "pLotSize", "dLotSize")
-_EXPIRY_KEYS = ("expiry_date", "expiry", "expiryDate", "pExpiryDate", "expDate")
+#: `lLotSize` is the name in Kotak's actual scrip-master CSV; the p-prefixed
+#: spellings come from the JSON shapes other endpoints return.
+_LOT_KEYS = ("lot_size", "lotsize", "lotSize", "pLotSize", "dLotSize", "lLotSize")
+#: `pExpiryDate` is a formatted date and `lExpiryDate` the same instant as a
+#: number, so the readable one is tried first and the epoch is the fallback.
+_EXPIRY_KEYS = (
+    "expiry_date", "expiry", "expiryDate", "pExpiryDate", "expDate", "lExpiryDate",
+)
 _DATE_FORMATS = ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d-%b-%Y", "%d%b%Y", "%d%b%y")
+#: 1980-01-01T00:00:00Z expressed as a Unix timestamp.
+_EPOCH_1980_AS_UNIX = 315_532_800
 
 
 def extract_underlying(trading_symbol: str) -> str:
@@ -108,4 +116,33 @@ def _expiry(row: dict[str, str]) -> str | None:
             return datetime.strptime(raw, fmt).date().isoformat()
         except ValueError:
             continue
+    if expiry := _from_epoch(raw):
+        return expiry
+    return None
+
+
+def _from_epoch(raw: str) -> str | None:
+    """A numeric expiry, under whichever epoch this file happens to use.
+
+    Kotak's numeric expiry is not always seconds since 1970: some feeds count
+    from 1980-01-01. Rather than assume one and silently mis-date every
+    contract, both are tried and the reading that lands in a plausible window
+    for a listed derivative wins. A number that fits neither is not a date.
+    """
+    try:
+        seconds = int(float(raw))
+    except (TypeError, ValueError):
+        return None
+
+    today = datetime.now(tz=UTC).date()
+    #: Listed futures run a few months out; a year back covers a stale file.
+    earliest, latest = today - timedelta(days=365), today + timedelta(days=1095)
+
+    for offset in (0, _EPOCH_1980_AS_UNIX):
+        try:
+            candidate = datetime.fromtimestamp(seconds + offset, tz=UTC).date()
+        except (OverflowError, OSError, ValueError):
+            continue
+        if earliest <= candidate <= latest:
+            return candidate.isoformat()
     return None

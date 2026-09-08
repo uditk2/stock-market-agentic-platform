@@ -132,16 +132,30 @@ def main() -> int:
         print(f"{PASS} session established for UCC ending {settings.ucc[-3:]}")
 
     with Stage(5, "Scrip master downloads and parses"):
-        from livegraph.feed import Segment, nearest_expiry_per_underlying, parse_instruments
+        from livegraph.feed import (
+            Segment,
+            load_scrip_master,
+            nearest_expiry_per_underlying,
+            parse_instruments,
+        )
 
-        rows = client.scrip_master(exchange_segment=str(Segment.FNO))
-        if isinstance(rows, dict) and "Error Message" in rows:
-            raise RuntimeError(f"scrip_master rejected: {rows['Error Message']}")
+        #: A URL to a CSV, not rows. Downloading it is the slow step here.
+        rows = load_scrip_master(client.scrip_master(exchange_segment=str(Segment.FNO)))
+        print(f"{INFO} {len(rows)} rows, columns: {', '.join(list(rows[0])[:8])}...")
         instruments = parse_instruments(rows, Segment.FNO)
         nearest = nearest_expiry_per_underlying(instruments)
         print(f"{PASS} {len(instruments)} F&O contracts, {len(nearest)} at nearest expiry")
         if not nearest:
             raise RuntimeError("no contracts parsed; the scrip master format may have changed")
+        #: Expiry and lot size come from columns whose names differ between the
+        #: CSV and the JSON endpoints, so show that they actually resolved.
+        dated = [i for i in nearest if i.expiry]
+        sized = [i for i in nearest if i.lot_size]
+        print(f"{PASS if dated else WARN} {len(dated)}/{len(nearest)} have an expiry")
+        print(f"{PASS if sized else WARN} {len(sized)}/{len(nearest)} have a lot size")
+        if dated:
+            sample = sorted(dated, key=lambda i: i.expiry)[0]
+            print(f"{INFO} nearest: {sample.trading_symbol} expires {sample.expiry}")
 
     with Stage(6, "Contracts intersect the graph universe"):
         from livegraph.graph import GraphRepository, NodeType

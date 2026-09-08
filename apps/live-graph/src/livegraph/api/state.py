@@ -103,12 +103,19 @@ class AppState:
             return NoFeed(detail), "error", detail
 
     def _live_feed(self, settings: KotakSettings):
-        from ..feed import KotakSession, TickStream, nearest_expiry_per_underlying, parse_instruments
+        from ..feed import (
+            KotakSession,
+            TickStream,
+            load_scrip_master,
+            nearest_expiry_per_underlying,
+            parse_instruments,
+        )
 
         session = KotakSession(settings)
         self.kotak_session = session
         client = session.login()
-        rows = client.scrip_master(exchange_segment=str(Segment.FNO))
+        #: `scrip_master` answers with a URL to a CSV, not with rows.
+        rows = load_scrip_master(client.scrip_master(exchange_segment=str(Segment.FNO)))
         instruments = nearest_expiry_per_underlying(parse_instruments(rows, Segment.FNO))
         tradable = {n.id for n in self.repo.nodes_of_type(NodeType.STOCK)}
         selected = [i for i in instruments if i.underlying in tradable]

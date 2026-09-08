@@ -154,3 +154,86 @@ def test_without_a_secret_or_a_code_the_login_still_refuses():
     session = KotakSession(settings, client_factory=lambda _: object())
     with pytest.raises(KotakAuthError, match="totp_secret"):
         session.login()
+
+
+# ---- scrip master ----------------------------------------------------
+#
+# `NeoAPI.scrip_master(exchange_segment=...)` returns a URL to a CSV, not rows.
+# Feeding that to the row parser iterated the characters of a URL and failed
+# with "'str' object has no attribute 'get'" — a message that says nothing
+# about the actual mistake, which is why each shape is pinned here.
+
+
+def test_a_url_is_downloaded_and_read_as_rows():
+    from unittest import mock
+
+    from livegraph.feed import load_scrip_master
+
+    csv_text = (
+        "pSymbol,pTrdSymbol,lLotSize,pExpiryDate\n"
+        "35001,RELIANCE25SEPFUT,500,25-09-2026\n"
+    )
+
+    class Response:
+        def read(self): return csv_text.encode()
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+
+    with mock.patch("urllib.request.urlopen", return_value=Response()):
+        rows = load_scrip_master("https://example.test/nse_fo.csv")
+
+    assert rows == [{
+        "pSymbol": "35001", "pTrdSymbol": "RELIANCE25SEPFUT",
+        "lLotSize": "500", "pExpiryDate": "25-09-2026",
+    }]
+
+
+def test_rows_are_passed_through_unchanged():
+    from livegraph.feed import load_scrip_master
+
+    rows = [{"pSymbol": "1", "pTrdSymbol": "INFY25SEPFUT"}]
+    assert load_scrip_master(rows) is rows
+
+
+def test_the_sdk_error_dict_becomes_a_readable_failure():
+    """The SDK returns errors instead of raising, in three different spellings."""
+    from livegraph.feed import ScripMasterError, load_scrip_master
+
+    for payload, expected in (
+        ({"Error Message": "Complete the 2fa process"}, "2fa"),
+        ({"Error": "Exchange Segment is not available"}, "Exchange Segment"),
+        ({"error": "boom"}, "boom"),
+    ):
+        with pytest.raises(ScripMasterError, match=expected):
+            load_scrip_master(payload)
+
+
+def test_a_list_of_strings_is_caught_here_not_deep_in_the_parser():
+    from livegraph.feed import ScripMasterError, load_scrip_master
+
+    with pytest.raises(ScripMasterError, match="list of str"):
+        load_scrip_master(["https://example.test/a.csv"])
+
+
+def test_something_that_is_not_a_url_is_refused_before_the_network():
+    from livegraph.feed import ScripMasterError, load_scrip_master
+
+    with pytest.raises(ScripMasterError, match="not a URL"):
+        load_scrip_master("/tmp/local/path.csv")
+
+
+def test_the_csv_column_names_kotak_actually_uses_are_parsed():
+    """The CSV says lLotSize and lExpiryDate; the JSON endpoints say pLotSize.
+
+    Only the p-spellings were known, so every contract came back with no lot
+    size and no expiry, and "nearest expiry" then picked an arbitrary contract.
+    """
+    rows = [{
+        "pSymbol": "35001",
+        "pTrdSymbol": "RELIANCE25SEPFUT",
+        "lLotSize": "500",
+        "pExpiryDate": "25-09-2026",
+    }]
+    parsed = parse_instruments(rows, Segment.FNO)
+    assert parsed[0].lot_size == 500
+    assert parsed[0].expiry == "2026-09-25"

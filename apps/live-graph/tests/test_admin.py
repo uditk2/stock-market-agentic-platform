@@ -386,3 +386,59 @@ def test_every_admin_route_but_the_session_handshake_needs_a_session(client):
                 assert response.status_code == 401, (
                     f"{method} {path} answered {response.status_code} without a session"
                 )
+
+
+# ---- the daily login -------------------------------------------------
+
+
+def test_a_typed_code_removes_the_need_for_a_stored_secret(unlocked, monkeypatch):
+    """The morning path: four credentials stored, the code read off a phone."""
+    credentials.write({
+        "consumer_key": "k", "mobile_number": "+919876543210",
+        "ucc": "ABC12", "mpin": "1234",
+    })
+    seen = {}
+
+    def fake_login(totp=None):
+        seen["totp"] = totp
+        return True, "Session established."
+
+    monkeypatch.setattr(
+        "livegraph.api.state.AppState.login_kotak", lambda self, totp=None: fake_login(totp)
+    )
+    try:
+        response = unlocked.post("/api/admin/broker/login", json={"totp": "123456"})
+        assert response.status_code == 200
+        assert seen["totp"] == "123456"
+    finally:
+        for field in ("consumer_key", "mobile_number", "ucc", "mpin"):
+            credentials.write({field: ""})
+
+
+def test_without_a_code_the_missing_secret_is_still_refused(unlocked):
+    credentials.write({
+        "consumer_key": "k", "mobile_number": "+919876543210",
+        "ucc": "ABC12", "mpin": "1234",
+    })
+    try:
+        response = unlocked.post("/api/admin/broker/login", json={})
+        assert response.status_code == 400
+        assert "totp_secret" in response.json()["detail"]
+    finally:
+        for field in ("consumer_key", "mobile_number", "ucc", "mpin"):
+            credentials.write({field: ""})
+
+
+def test_a_malformed_code_is_rejected_before_reaching_kotak(unlocked):
+    credentials.write({
+        "consumer_key": "k", "mobile_number": "+919876543210",
+        "ucc": "ABC12", "mpin": "1234",
+    })
+    try:
+        for bad in ("12345", "1234567", "abcdef"):
+            response = unlocked.post("/api/admin/broker/login", json={"totp": bad})
+            assert response.status_code == 400, bad
+            assert "six digits" in response.json()["detail"]
+    finally:
+        for field in ("consumer_key", "mobile_number", "ucc", "mpin"):
+            credentials.write({field: ""})

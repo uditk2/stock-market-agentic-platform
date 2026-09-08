@@ -143,3 +143,67 @@ def test_websocket_sends_a_snapshot_then_coalesced_batches(client, feed):
 
 
 
+
+
+def test_a_successful_login_starts_the_feed_when_none_is_running():
+    """The Admin tab could log in and still show no prices without this.
+
+    Replacing a *live* socket in place is a separate concern; starting one when
+    the app came up unconfigured is safe, because there is nothing to tear down.
+    """
+    from unittest import mock
+
+    from fake_feed import FakeFeed
+
+    from livegraph.api.state import AppState
+    from livegraph.feed import NoFeed
+
+    state = AppState(feed=NoFeed("no credentials"))
+    assert state.feed_mode != "live"
+
+    replacement = FakeFeed([("INFY", 1500.0, -1.0)])
+    session = mock.Mock()
+    session.client = object()
+    state.kotak_session = session
+
+    with mock.patch.object(
+        AppState, "_live_feed_from", return_value=(replacement, "live", "42 contracts")
+    ):
+        ok, message = state._start_live_feed(session.client)
+
+    assert ok and "live" in message
+    assert state.feed is replacement
+    assert state.feed_mode == "live"
+    #: The new feed must be wired to the tick handler, or prices arrive nowhere:
+    #: a tick from it has to reach the state the API reads.
+    replacement.emit("INFY", 1500.0, -1.0)
+    assert "INFY" in state.ticks()
+
+
+def test_an_injected_feed_is_not_replaced_by_a_login():
+    from fake_feed import FakeFeed
+
+    from livegraph.api.state import AppState
+
+    state = AppState(feed=FakeFeed([("INFY", 1500.0, -1.0)]))
+    existing = state.feed
+    ok, message = state._start_live_feed(object())
+
+    assert ok and "left alone" in message
+    assert state.feed is existing
+
+
+def test_a_feed_that_fails_to_start_does_not_lose_the_session():
+    """The login worked; only the feed did not. Say both."""
+    from unittest import mock
+
+    from livegraph.api.state import AppState
+    from livegraph.feed import NoFeed
+
+    state = AppState(feed=NoFeed("no credentials"))
+    with mock.patch.object(AppState, "_live_feed_from", side_effect=RuntimeError("boom")):
+        ok, message = state._start_live_feed(object())
+
+    assert ok is True
+    assert "did not start" in message and "boom" in message
+    assert state.feed_mode != "live"

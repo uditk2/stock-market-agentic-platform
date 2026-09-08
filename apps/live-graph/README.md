@@ -212,9 +212,20 @@ type survives `up --build`; from source it is `.livegraph/`, which is
 git-ignored. Values are never returned by any endpoint and never logged — only
 field names are.
 
-The feed is not rebuilt when credentials change. Swapping a live socket
-underneath a running app is a separate concern, so the page saves, says so, and
-leaves the restart to you.
+**The daily login takes a typed code.** Kotak's API wants the six digits, not
+the secret, and the secret is only how the app logs itself back in unattended.
+With no usable secret stored, the tab shows a code box; with one, it derives
+the code and the box disappears. A secret that is stored but cannot produce a
+code is labelled as such, because it passes every presence check and would
+otherwise read as correctly configured while the login it exists for fails.
+
+A successful login starts the feed when none is running. That is safe precisely
+because there is nothing to tear down: the app came up unconfigured, so no
+socket and no prices exist yet. A feed that is already live is left alone —
+replacing a running socket in place is a separate concern from starting one —
+and so is an injected test feed.
+
+Saving a credential does not rebuild anything. Log in afterwards, which does.
 
 Model credentials are the exception: this app does not take them. Those logins
 are OAuth flows that CLIProxyAPI owns and drives from its own control panel, so

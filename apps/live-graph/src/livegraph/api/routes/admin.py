@@ -82,6 +82,12 @@ class BrokerStatusOut(BaseModel):
     totp: TotpOut
 
 
+class LoginIn(BaseModel):
+    """The six-digit code, when there is no stored secret to derive one from."""
+
+    totp: str | None = None
+
+
 class LoginResultOut(BaseModel):
     ok: bool
     message: str
@@ -271,15 +277,23 @@ def totp(state: AppState = Depends(get_state)) -> TotpOut:
 
 
 @router.post("/broker/login", response_model=LoginResultOut)
-def login(state: AppState = Depends(get_state)) -> LoginResultOut:
-    """Establish a Kotak session now. Sessions expire daily."""
+def login(body: LoginIn | None = None, state: AppState = Depends(get_state)) -> LoginResultOut:
+    """Establish a Kotak session now, and start the feed if one is not running.
+
+    Sessions expire daily, so this is the first thing done each trading morning.
+    """
+    totp = (body.totp or "").strip() if body else ""
     settings = load_kotak_settings()
-    if not settings.is_configured:
+    #: A supplied code is what the stored secret would have produced, so the
+    #: secret stops being required the moment one is typed in.
+    missing = [f for f in settings.missing_fields() if not (totp and f == "totp_secret")]
+    if missing:
         raise HTTPException(
-            status_code=400,
-            detail=f"Missing credentials: {', '.join(settings.missing_fields())}",
+            status_code=400, detail=f"Missing credentials: {', '.join(missing)}",
         )
-    ok, message = state.login_kotak()
+    if totp and not (totp.isdigit() and len(totp) == 6):
+        raise HTTPException(status_code=400, detail="The TOTP code is six digits.")
+    ok, message = state.login_kotak(totp=totp or None)
     if not ok:
         raise HTTPException(status_code=502, detail=message)
     session = state.kotak_session

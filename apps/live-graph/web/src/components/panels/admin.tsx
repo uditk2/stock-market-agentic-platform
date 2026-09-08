@@ -19,7 +19,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { usePoll } from "@/hooks/use-poll";
-import { api, type CredentialField, type CredentialSource } from "@/lib/api";
+import {
+  api,
+  type BrokerStatus,
+  type CredentialField,
+  type CredentialSource,
+} from "@/lib/api";
 import { ago } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -236,22 +241,14 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
             >
               Feed: {status.feed_mode}
             </Badge>
-            <Button
-              size="sm"
-              className="ml-auto"
-              onClick={() => run(async () => (await api.brokerLogin()).message)}
-              disabled={busy || !status.configured}
-            >
-              {busy ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
-              Log in now
-            </Button>
           </div>
 
-          {!status.configured && (
-            <p className="text-muted-foreground text-sm">
-              Login stays disabled until all five credentials are present. Fill them below.
-            </p>
-          )}
+          <BrokerLogin
+            status={status}
+            totpAvailable={Boolean(totp?.available)}
+            busy={busy}
+            onLogin={(code) => run(async () => (await api.brokerLogin(code)).message)}
+          />
 
           {result && (
             <p
@@ -276,6 +273,9 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
 
       <CredentialsForm
         fields={status.credentials}
+        secretUnusable={Boolean(totp && !totp.available && status.credentials.some(
+          (f) => f.name === "totp_secret" && f.set,
+        ))}
         busy={busy}
         onSave={(values) =>
           run(async () => (await api.saveCredentials(values)).message)
@@ -385,6 +385,88 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
 }
 
 /**
+ * The daily login.
+ *
+ * Kotak's session expires overnight, so this is the first thing done each
+ * trading morning. The code can come from a stored secret or from the
+ * authenticator in your hand; the app only needs the secret to log itself back
+ * in unattended, so a typed code is a complete substitute here.
+ */
+function BrokerLogin({
+  status,
+  totpAvailable,
+  busy,
+  onLogin,
+}: {
+  status: BrokerStatus;
+  totpAvailable: boolean;
+  busy: boolean;
+  onLogin: (code?: string) => Promise<void>;
+}) {
+  const [code, setCode] = useState("");
+
+  //: Everything but the secret. A code typed here stands in for it.
+  const missing = status.credentials.filter((f) => !f.set && f.name !== "totp_secret");
+  if (missing.length) {
+    return (
+      <p className="text-muted-foreground text-sm">
+        Login needs {missing.map((f) => f.label).join(", ")}. Fill them in below first.
+      </p>
+    );
+  }
+
+  if (totpAvailable) {
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        <Button size="sm" disabled={busy} onClick={() => onLogin()}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
+          Log in now
+        </Button>
+        <span className="text-muted-foreground text-sm">
+          Using the code derived from your stored secret.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (code.length === 6) onLogin(code).then(() => setCode(""));
+      }}
+    >
+      <Label htmlFor="totp-code" className="text-sm font-medium">
+        Six-digit code from your authenticator
+      </Label>
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          id="totp-code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="000000"
+          maxLength={6}
+          className="max-w-[9rem] font-mono text-lg tracking-[0.3em] tabular-nums"
+          value={code}
+          //: Digits only, so a pasted code with spaces still submits.
+          onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+        />
+        <Button type="submit" size="sm" disabled={busy || code.length !== 6}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
+          Log in
+        </Button>
+      </div>
+      <p className="text-muted-foreground text-xs">
+        No TOTP secret is stored, so the code is typed each morning. Store the secret
+        below to have the app derive it instead.
+      </p>
+    </form>
+  );
+}
+
+
+/**
  * All five credentials as one form.
  *
  * Every input starts empty rather than pre-filled, because the values cannot be
@@ -395,10 +477,15 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
  */
 function CredentialsForm({
   fields,
+  secretUnusable,
   busy,
   onSave,
 }: {
   fields: CredentialField[];
+  //: A stored secret that will not produce a code. It passes every presence
+  //: check, so without saying so here the row reads as correctly configured
+  //: while the login it is supposed to serve keeps failing.
+  secretUnusable: boolean;
   busy: boolean;
   onSave: (values: Record<string, string>) => Promise<void>;
 }) {
@@ -418,7 +505,9 @@ function CredentialsForm({
           Values are never sent to the browser, only whether each one is present and where
           it came from. Anything saved here is written to the app&apos;s state directory,
           takes precedence over <code>.env</code>, and survives a rebuild. Leave a box
-          empty to keep the current value.
+          empty to keep the current value. The TOTP secret is optional: it is the long
+          base32 string from the one-time QR registration, and storing it only saves
+          typing a code each morning.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -446,12 +535,25 @@ function CredentialsForm({
                 <Badge variant="outline" className="text-muted-foreground text-[10px]">
                   {SOURCE_LABEL[field.source]}
                 </Badge>
+                {field.name === "totp_secret" && (
+                  <Badge variant="outline" className="text-muted-foreground text-[10px]">
+                    optional
+                  </Badge>
+                )}
                 {field.placeholder && (
                   <Badge
                     variant="outline"
                     className="border-amber-500/40 text-amber-700 dark:text-amber-400"
                   >
                     looks like a comment, not a value
+                  </Badge>
+                )}
+                {field.name === "totp_secret" && field.set && secretUnusable && (
+                  <Badge
+                    variant="outline"
+                    className="border-amber-500/40 text-amber-700 dark:text-amber-400"
+                  >
+                    stored, but not a usable secret
                   </Badge>
                 )}
               </div>

@@ -103,22 +103,28 @@ class AppState:
             return NoFeed(detail), "error", detail
 
     def _live_feed(self, settings: KotakSettings):
+        from ..feed import KotakSession
+
+        session = KotakSession(settings)
+        self.kotak_session = session
+        return self._live_feed_from(session.login())
+
+    def _live_feed_from(self, client):
+        """Everything after the login: resolve contracts and build the stream."""
         from ..feed import (
-            KotakSession,
             TickStream,
             load_scrip_master,
             nearest_expiry_per_underlying,
             parse_instruments,
         )
 
-        session = KotakSession(settings)
-        self.kotak_session = session
-        client = session.login()
         #: `scrip_master` answers with a URL to a CSV, not with rows.
         rows = load_scrip_master(client.scrip_master(exchange_segment=str(Segment.FNO)))
         instruments = nearest_expiry_per_underlying(parse_instruments(rows, Segment.FNO))
         tradable = {n.id for n in self.repo.nodes_of_type(NodeType.STOCK)}
         selected = [i for i in instruments if i.underlying in tradable]
+        if not selected:
+            raise RuntimeError("no F&O contract matched a graph symbol")
         stream = TickStream(client, selected)
         return stream, "live", f"{len(selected)} contracts"
 
@@ -215,12 +221,12 @@ class AppState:
             detail=self.feed_detail,
         )
 
-    def login_kotak(self) -> tuple[bool, str]:
+    def login_kotak(self, totp: str | None = None) -> tuple[bool, str]:
         """Establish a Kotak session on demand. Sessions expire daily.
 
-        The feed is not swapped underneath a running app: switching a live
-        socket in place mid-session is a separate concern, and a restart picks
-        up the working credentials cleanly.
+        `totp` is the six-digit code. Passing one removes the need for a stored
+        secret, which is what lets somebody log in from the Admin tab by
+        reading their authenticator instead of teaching the app to generate it.
         """
         from ..feed import KotakAuthError, KotakSession
 
@@ -228,7 +234,7 @@ class AppState:
         session = self.kotak_session or KotakSession(settings)
         self.kotak_session = session
         try:
-            session.login()
+            session.login(totp=totp)
         except KotakAuthError as exc:
             session.record_failure(str(exc))
             logger.warning("Kotak login failed: %s", exc)
@@ -238,12 +244,44 @@ class AppState:
             logger.exception("Kotak login failed")
             return False, f"Login failed: {exc}"
 
-        if self.feed_mode != "live":
+        if self.feed_mode == "live":
+            #: Already streaming. Replacing a live socket in place is a separate
+            #: concern from starting one, and the session just refreshed is the
+            #: thing that keeps the existing stream working.
+            return True, "Session established."
+
+        return self._start_live_feed(session.client)
+
+    def _start_live_feed(self, client) -> tuple[bool, str]:
+        """Swap a NoFeed for a real stream after a successful manual login.
+
+        Safe precisely because there is nothing live to tear down: the app
+        started unconfigured, so no socket, no handlers and no prices exist yet.
+        A restart would also work and is what this used to require, which made
+        the Admin tab able to log in and unable to show a price.
+        """
+        from ..feed import NoFeed
+
+        if not isinstance(self.feed, NoFeed):
+            #: An injected test feed, or something else deliberate. Not ours to
+            #: replace on the strength of a login.
+            return True, "Session established. The existing feed was left alone."
+
+        try:
+            stream, mode, detail = self._live_feed_from(client)
+        except Exception as exc:  # noqa: BLE001 - the login worked; this is separate
+            logger.exception("could not start the feed after login")
             return True, (
-                "Session established. This process started without a feed, so restart "
-                "the app to begin streaming prices."
+                f"Session established, but the feed did not start: {exc}. "
+                "Restarting the app will retry it."
             )
-        return True, "Session established."
+
+        self.feed = stream
+        self.feed_mode, self.feed_detail = mode, detail
+        self.feed.add_handler(self._on_tick)
+        self.feed.start()
+        logger.info("feed started after manual login: %s", detail)
+        return True, f"Session established and the feed is live: {detail}."
 
     def news_for(self, symbol: str, limit: int = 20) -> list[NewsItem]:
         return self.news.for_node(symbol, limit=limit)

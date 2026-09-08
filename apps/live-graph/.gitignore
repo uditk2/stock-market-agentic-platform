@@ -4,3 +4,7 @@ __pycache__/
 .env
 data/news_items.json
 data/session.json
+
+# Credentials entered through the Admin tab, when running from source.
+# In the container this is a named volume instead.
+.livegraph/

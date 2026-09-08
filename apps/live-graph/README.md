@@ -31,11 +31,50 @@ tick feed and the UI, and hosts the strategy sandbox in-process. Nothing mounts
 the Docker socket and no sibling containers are started.
 
 ```bash
-./scripts/setup-kotak.sh  # fills .env with echo off; nothing is printed
 docker compose up --build
 ```
 
-Then open http://localhost:8000.
+Then open http://localhost:8000. Nothing needs configuring first: the app
+starts, serves the graph, and the Admin tab says what is missing.
+
+There are two things to set up, and the Admin tab handles both: Kotak
+credentials go into a form there, and model access is a login against
+CLIProxyAPI, which owns that flow and ships its own control panel.
+
+The tab is behind a passphrase, so set one in `.env` first — without it the
+tab shows only an explanation of how to enable it:
+
+```
+LIVEGRAPH_ADMIN_PASSWORD=something-only-you-know
+```
+
+See [Admin](#admin).
+
+If you would rather not type credentials into a browser at all,
+`./scripts/setup-kotak.sh` fills `.env` with terminal echo off, printing
+nothing.
+
+### A proxy of your own
+
+`CLIPROXY_BASE_URL` defaults to a proxy on the host, because one CLIProxyAPI is
+usually shared across projects. On a machine with none:
+
+```bash
+docker compose --profile local-proxy up --build
+docker compose --profile local-proxy exec cliproxy ./CLIProxyAPI -claude-login
+docker compose --profile local-proxy exec cliproxy ./CLIProxyAPI -codex-device-login
+```
+
+The logins open OAuth flows against subscriptions you already have; no provider
+API key is involved. Tokens land in the `cliproxy-auths` volume and survive
+rebuilds. Change the placeholder key in `cliproxy/config.yaml` and put the same
+value in `CLIPROXY_API_KEY`.
+
+The profile is opt-in rather than the default for one reason: those tokens are
+long-lived grants on your personal accounts, and two proxies signed into the
+same account keep two token stores and refresh them independently, which can
+invalidate each other. If a proxy is already running, leave the profile off and
+point `LIVEGRAPH_CLIPROXY_URL` at it.
 
 ### Running from source instead
 
@@ -85,7 +124,18 @@ TOTP), where you scan a QR into an authenticator app.
 
 Agents talk OpenAI protocol to CLIProxyAPI, which fronts your Claude Code and
 Codex OAuth subscriptions, so no provider API key is needed. Set
-`CLIPROXY_BASE_URL` and `CLIPROXY_API_KEY` in `.env`.
+`CLIPROXY_BASE_URL` and `CLIPROXY_API_KEY` in `.env`, or run one with the
+`local-proxy` profile above.
+
+The Admin tab probes `/v1/models` and reports three states apart: nothing
+listening, listening but rejecting the key, and working — plus whether the
+proxy actually advertises the two models this app asks for. A proxy that is up
+with no Claude credential loaded answers happily without them, which is the
+failure worth catching early.
+
+Provider logins are not reimplemented here. They belong to CLIProxyAPI
+(`-claude-login`, `-codex-device-login`), it serves a control panel at
+`/management.html` that drives them, and the Admin tab links to it.
 
 **Two backend caveats, both measured not assumed:**
 
@@ -97,6 +147,45 @@ Codex OAuth subscriptions, so no provider API key is needed. Set
    OpenAI's `/v1/responses`, but **not** on `/v1/chat/completions`, which the
    rest of this app uses. That path does not error, it answers without
    searching. `scan.websearch` therefore calls `/v1/messages` directly.
+
+## Admin
+
+The tab that exists so a fresh `docker compose up` is enough. It reports the
+broker session, the Kotak credentials, the current TOTP code and the state of
+model access, and it can change the first two.
+
+**The whole tab is behind a passphrase**, reads included. Set
+`LIVEGRAPH_ADMIN_PASSWORD` in `.env`; unlocking stores a signed `HttpOnly`
+cookie for twelve hours. `/api/admin/session` is the single exception, because
+a page has to be able to ask whether it is logged in and whether a passphrase
+was ever configured.
+
+With no passphrase set the API refuses everything and the tab says so rather
+than offering a login: a missing setting should be a locked door, not a silent
+hole. Changing the passphrase invalidates outstanding sessions, because the
+signing key is derived from it. The gate is on the router, not on individual
+routes, so a route added later is protected by default — and a test enumerates
+the admin surface from the app to keep that true.
+
+**Credentials typed here override `.env`.** The page is the more recent
+statement of intent, and edits that silently lose to an older file would be
+worse than no edits at all. Each field says where its value came from — `set
+here`, `from .env`, or `not set` — so an override is visible rather than
+inferred. Clearing a field hands it back to `.env`.
+
+Values are written to `LIVEGRAPH_STATE_DIR` as `credentials.json`, mode 0600,
+replaced atomically. In the container that path is a named volume, so what you
+type survives `up --build`; from source it is `.livegraph/`, which is
+git-ignored. Values are never returned by any endpoint and never logged — only
+field names are.
+
+The feed is not rebuilt when credentials change. Swapping a live socket
+underneath a running app is a separate concern, so the page saves, says so, and
+leaves the restart to you.
+
+Model credentials are the exception: this app does not take them. Those logins
+are OAuth flows that CLIProxyAPI owns and drives from its own control panel, so
+the Admin tab reports whether the proxy answers and links out to it.
 
 ## Strategy sandbox
 

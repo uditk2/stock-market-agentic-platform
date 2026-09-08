@@ -18,6 +18,20 @@ Then open http://localhost:8000. Without Kotak credentials the app still runs,
 serving the graph and the admin page, but shows no prices and says why. There
 is no synthetic feed.
 
+The Admin tab is where credentials go: Kotak's five as a form, and model access
+via a link to CLIProxyAPI's own control panel. The tab is behind a passphrase,
+so set `LIVEGRAPH_ADMIN_PASSWORD` in `apps/live-graph/.env` first — without one
+the tab shows nothing but how to enable it.
+
+The agentic half needs a CLIProxyAPI reachable at `CLIPROXY_BASE_URL`; it
+fronts your existing Claude Code and Codex subscriptions, so no provider API
+key is involved. If you do not already run one, live-graph can start it:
+
+```bash
+cd apps/live-graph
+docker compose --profile local-proxy up --build
+```
+
 From source instead:
 
 ```bash

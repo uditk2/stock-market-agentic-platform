@@ -41,8 +41,11 @@ def create_app(feed=None) -> FastAPI:
         allow_origin_regex=ALLOWED_ORIGIN_REGEX,
         allow_methods=["*"],
         allow_headers=["*"],
+        #: The admin session is a cookie, and the dev UI is a different origin
+        #: from the API. Without this the login succeeds and is then forgotten.
+        allow_credentials=True,
     )
-    for router in (scan.router, admin.router, market.router, graph.router, news.router, analyst.router, scratchpad.router, ws.router):
+    for router in (scan.router, admin.router, admin.session_router, market.router, graph.router, news.router, analyst.router, scratchpad.router, ws.router):
         app.include_router(router)
 
     @app.get("/api/health")

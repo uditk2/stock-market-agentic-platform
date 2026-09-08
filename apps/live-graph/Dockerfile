@@ -68,7 +68,13 @@ COPY --from=sandbox-builder /worker/node_modules ./sandbox-worker/node_modules
 COPY src/livegraph/scratchpad/sandbox/worker/sandbox_worker.mjs ./sandbox-worker/
 ENV LIVEGRAPH_DATA_DIR=/app/data \
     LIVEGRAPH_UI_DIR=/app/web/out \
-    LIVEGRAPH_SANDBOX_WORKER_DIR=/app/sandbox-worker
+    LIVEGRAPH_SANDBOX_WORKER_DIR=/app/sandbox-worker \
+    LIVEGRAPH_STATE_DIR=/app/state
+
+# Credentials typed into the Admin tab. Created here so it exists with the
+# right owner even when compose mounts nothing over it; the compose file backs
+# it with a named volume so an image rebuild does not discard what was entered.
+RUN mkdir -p /app/state
 
 # The sandbox already confines strategy code inside WASM; running the service
 # itself as non-root keeps the blast radius small if the API is compromised.

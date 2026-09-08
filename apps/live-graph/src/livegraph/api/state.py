@@ -14,6 +14,7 @@ from pathlib import Path
 
 from ..agent import AnalystDeps, AnalystService, CoMovementAnalyzer, PriceHistory
 from ..feed import KotakSession, KotakSettings, NoFeed, Segment, Tick
+from ..feed.config import load_kotak_settings
 from ..graph import GraphRepository, NodeType
 from ..paths import data_dir as resolve_data_dir
 from ..news import EntityResolver, NewsItem, NewsPoller
@@ -87,7 +88,7 @@ class AppState:
         if injected is not None:
             return injected, "injected", "feed supplied by the caller"
 
-        settings = KotakSettings()
+        settings = load_kotak_settings()
         missing = settings.missing_fields()
         if missing:
             detail = f"Kotak credentials incomplete: {', '.join(missing)}"
@@ -216,7 +217,7 @@ class AppState:
         """
         from ..feed import KotakAuthError, KotakSession
 
-        settings = KotakSettings()
+        settings = load_kotak_settings()
         session = self.kotak_session or KotakSession(settings)
         self.kotak_session = session
         try:

@@ -50,9 +50,13 @@ echo "Checking what was written..."
 import sys
 sys.path.insert(0, "src")
 from livegraph.feed import KotakSettings
+from livegraph.feed.config import load_kotak_settings
 from livegraph.feed.totp import TotpError, current_code
 
-settings = KotakSettings()
+#: The store the Admin tab writes to overrides .env, so report what the app
+#: will actually use. Reading .env alone would call a field missing that the
+#: Admin tab had already set.
+settings = load_kotak_settings()
 missing = settings.missing_fields()
 for field in KotakSettings.REQUIRED:
     value = getattr(settings, field)

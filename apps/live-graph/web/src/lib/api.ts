@@ -185,12 +185,15 @@ export interface SectorDetail {
   members: Mover[];
 }
 
+export type CredentialSource = "store" | "env" | "unset";
+
 export interface CredentialField {
   name: string;
   label: string;
   set: boolean;
   placeholder: boolean;
   hint: string;
+  source: CredentialSource;
 }
 
 export interface TotpState {
@@ -209,6 +212,34 @@ export interface BrokerStatus {
   session_since: number | null;
   last_error: string | null;
   totp: TotpState;
+}
+
+export interface ModelAvailability {
+  role: string;
+  name: string;
+  available: boolean;
+}
+
+export interface ModelStatus {
+  base_url: string;
+  reachable: boolean;
+  key_accepted: boolean;
+  key_set: boolean;
+  control_panel_url: string;
+  detail: string;
+  models: ModelAvailability[];
+}
+
+export interface AdminSession {
+  enabled: boolean;
+  authenticated: boolean;
+}
+
+export interface CredentialsResult {
+  ok: boolean;
+  changed: string[];
+  message: string;
+  configured: boolean;
 }
 
 export interface AnalystReply {
@@ -231,22 +262,40 @@ export interface ScratchpadTurn {
 }
 
 async function get<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE}${path}`, { cache: "no-store" });
+  const response = await fetch(`${BASE}${path}`, {
+    cache: "no-store",
+    credentials: "include",
+  });
   if (!response.ok) throw new Error(`${response.status} ${path}`);
   return response.json() as Promise<T>;
 }
 
-async function post<T>(path: string, body?: unknown): Promise<T> {
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(`${BASE}${path}`, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `${response.status} ${path}`);
-  }
+  if (!response.ok) throw new Error(await errorMessage(response, path));
   return response.json() as Promise<T>;
+}
+
+const post = <T,>(path: string, body?: unknown) => send<T>("POST", path, body);
+
+/**
+ * FastAPI puts the readable reason in `detail`. Surfacing the raw JSON instead
+ * would show an operator `{"detail":"Wrong passphrase."}` in a toast.
+ */
+async function errorMessage(response: Response, path: string): Promise<string> {
+  const raw = await response.text();
+  try {
+    const parsed = JSON.parse(raw);
+    if (typeof parsed?.detail === "string") return parsed.detail;
+  } catch {
+    /* not JSON; fall through to the raw body */
+  }
+  return raw || `${response.status} ${path}`;
 }
 
 export const api = {
@@ -263,6 +312,13 @@ export const api = {
     post<{ ok: boolean; message: string; session_since: number | null }>(
       "/api/admin/broker/login",
     ),
+  saveCredentials: (values: Record<string, string>) =>
+    send<CredentialsResult>("PUT", "/api/admin/broker/credentials", { values }),
+  modelStatus: () => get<ModelStatus>("/api/admin/models"),
+  adminSession: () => get<AdminSession>("/api/admin/session"),
+  adminLogin: (passphrase: string) =>
+    post<AdminSession>("/api/admin/session", { passphrase }),
+  adminLogout: () => send<AdminSession>("DELETE", "/api/admin/session"),
   sectorDetail: (name: string) =>
     get<SectorDetail>(`/api/scan/sector/${encodeURIComponent(name)}`),
   quotes: () => get<Quote[]>("/api/market/quotes"),

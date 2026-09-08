@@ -53,3 +53,16 @@ class KotakSettings(BaseSettings):
             for name in self.REQUIRED
             if (value := getattr(self, name)) and not _looks_real(value)
         ]
+
+
+def load_kotak_settings() -> "KotakSettings":
+    """Credentials as the app should see them: the admin store over `.env`.
+
+    Import is local because `livegraph.credentials` touches the filesystem, and
+    `KotakSettings` itself must stay constructible in a test with no state
+    directory. Values passed to the constructor beat environment variables in
+    pydantic-settings, which is exactly the precedence documented on the store.
+    """
+    from ..credentials import read
+
+    return KotakSettings(**read())

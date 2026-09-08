@@ -28,6 +28,20 @@ def data_dir() -> Path:
     )
 
 
+def state_dir() -> Path:
+    """Where the app writes what it is given at runtime, chiefly credentials.
+
+    Unlike the other locations this one is written to, not just read, and it
+    must survive an image rebuild. In the container it is a mounted volume; from
+    source it sits beside the code and is git-ignored. The directory is created
+    on demand because the first write may be the first time it is needed.
+    """
+    override = os.environ.get("LIVEGRAPH_STATE_DIR")
+    resolved = Path(override) if override else _SOURCE_ROOT / ".livegraph"
+    resolved.mkdir(parents=True, exist_ok=True)
+    return resolved
+
+
 def ui_dir() -> Path:
     return _resolve(
         env_var="LIVEGRAPH_UI_DIR",

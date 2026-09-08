@@ -2,6 +2,10 @@
 
 install:
 	cd apps/live-graph && uv venv --python 3.13 .venv && uv pip install -e ".[dev,kotak]"
+	# The Neo SDK is not on PyPI and hard-pins a broken tree, so it is resolved
+	# from git without its own deps; [kotak] above supplies what it imports.
+	cd apps/live-graph && .venv/bin/python -m pip install --no-deps -q \
+		"neo_api_client @ git+https://github.com/Kotak-Neo/Kotak-neo-api-v2.git@v2.0.2"
 	cd apps/live-graph/web && npm install
 	cd apps/live-graph/src/livegraph/scratchpad/sandbox/worker && npm install
 

@@ -35,6 +35,11 @@ kotak = [
     "python-dateutil>=2.8",
     "six>=1.16",
     "pyjsparser>=2.7",
+    #: `neo_api_client.api.scrip_search` imports pandas at module scope, so the
+    #: package cannot even be imported without it. Missing here meant the first
+    #: real Kotak login failed on ModuleNotFoundError rather than on anything
+    #: to do with credentials — in the image as well as from source.
+    "pandas>=2.2",
 ]
 
 [build-system]

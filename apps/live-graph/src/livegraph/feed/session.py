@@ -95,18 +95,29 @@ class KotakSession:
                 if not _is_mobile_rejection(str(exc)):
                     raise
                 if attempt == len(spellings):
-                    #: Every form refused. The format is not the problem, so
-                    #: say what is left: the digits, or which UCC they belong to.
+                    #: Every form refused. Do not conclude the number is wrong:
+                    #: measured against the live API, a malformed number is
+                    #: refused on the field and a well-formed one reaches the
+                    #: code check, which answers "Invalid TOTP" instead. A
+                    #: well-formed number refused on the field is therefore
+                    #: something other than its spelling, and saying otherwise
+                    #: sends someone to correct a value that is already right.
                     raise KotakAuthError(
                         "Kotak refused the mobile number in every form it accepts "
-                        "(+91XXXXXXXXXX, 91XXXXXXXXXX and the ten digits alone). "
-                        "Check it is the number registered against this UCC. "
+                        f"({', '.join(spellings)}). A number in this shape normally "
+                        "gets as far as the code check, so this is usually either "
+                        "the wrong number for this UCC or too many attempts in quick "
+                        f"succession — wait a minute and retry before changing it. "
                         f"Kotak said: {exc}"
                     ) from exc
                 logger.info(
                     "Kotak refused the mobile number's spelling (%d of %d); retrying",
                     attempt, len(spellings),
                 )
+                #: Kotak rate-limits bursts, and three rejected logins inside a
+                #: second is a burst. Pacing them keeps a format retry from
+                #: turning into the throttling it then reports as a bad number.
+                time.sleep(_RETRY_PAUSE_SECONDS)
                 continue
             if attempt > 1:
                 #: Worth knowing: the stored value needs rewriting to stop
@@ -162,6 +173,10 @@ def _default_client_factory(settings: KotakSettings):
         consumer_key=settings.consumer_key,
     )
 
+
+#: Long enough to leave a burst, short enough that three attempts still
+#: finish inside one 30-second TOTP window.
+_RETRY_PAUSE_SECONDS = 1.5
 
 #: Kotak names the field it refused: "Invalid field 'MobileNumber'".
 _MOBILE_FIELD = re.compile(r"mobile\s*number", re.I)

@@ -339,3 +339,62 @@ def test_an_error_that_is_not_about_the_mobile_number_is_not_retried():
         session.login(totp="123456")
 
     assert client.calls == 1
+
+
+def test_every_spelling_refused_does_not_blame_the_number(monkeypatch):
+    """Measured against the live API: a well-formed number reaches the code check.
+
+    A malformed number is refused on the field; a well-formed one gets as far
+    as the TOTP and comes back "Invalid TOTP". So a well-formed number refused
+    on the field is something other than its spelling — most often a burst of
+    attempts — and telling someone to correct a value that is already right
+    sends them to change the one thing that is not wrong.
+    """
+    from livegraph.feed import KotakAuthError, KotakSession
+    from livegraph.feed.config import KotakSettings
+
+    monkeypatch.setattr("livegraph.feed.session._RETRY_PAUSE_SECONDS", 0)
+    settings = KotakSettings(
+        consumer_key="k", mobile_number="+919876543210", ucc="ABC12", mpin="1234",
+        totp_secret="JBSWY3DPEHPK3PXP",
+    )
+
+    attempts = []
+
+    class Refusing:
+        def totp_login(self, **kwargs):
+            attempts.append(kwargs["mobile_number"])
+            return {"error": [{"message": "Invalid field 'MobileNumber'; must be valid"}]}
+
+    session = KotakSession(settings, client_factory=lambda _: Refusing())
+    with pytest.raises(KotakAuthError) as caught:
+        session.login(totp="123456")
+
+    message = str(caught.value)
+    assert attempts == ["+919876543210", "919876543210", "9876543210"]
+    assert "too many attempts" in message
+    assert "wrong number for this UCC" in message
+    #: The old wording told the operator to go and check the number, full stop.
+    assert "Check it is the number registered" not in message
+
+
+def test_a_rejection_that_is_not_about_the_mobile_field_is_raised_at_once():
+    """A wrong code must not cost three attempts and three explanations."""
+    from livegraph.feed import KotakAuthError, KotakSession
+    from livegraph.feed.config import KotakSettings
+
+    settings = KotakSettings(
+        consumer_key="k", mobile_number="+919876543210", ucc="ABC12", mpin="1234",
+        totp_secret="JBSWY3DPEHPK3PXP",
+    )
+    calls = []
+
+    class WrongCode:
+        def totp_login(self, **kwargs):
+            calls.append(kwargs)
+            return {"error": [{"code": "10506", "message": "Invalid TOTP"}]}
+
+    session = KotakSession(settings, client_factory=lambda _: WrongCode())
+    with pytest.raises(KotakAuthError, match="Invalid TOTP"):
+        session.login(totp="000000")
+    assert len(calls) == 1

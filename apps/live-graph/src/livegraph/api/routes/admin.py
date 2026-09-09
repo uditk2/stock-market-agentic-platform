@@ -154,7 +154,8 @@ class SessionStateOut(BaseModel):
 FIELDS: tuple[tuple[str, str, str], ...] = (
     ("consumer_key", "Consumer key",
      "Neo app or web: Invest tab, Trade API card, generate application."),
-    ("mobile_number", "Mobile number", "Registered mobile with country code."),
+    ("mobile_number", "Mobile number",
+     "Registered mobile. With or without +91; spaces and dashes are fine."),
     ("ucc", "UCC", "Unique Client Code, shown in your Neo profile."),
     ("mpin", "MPIN", "Your Neo MPIN."),
     ("totp_secret", "TOTP secret",

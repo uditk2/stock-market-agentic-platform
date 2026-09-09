@@ -94,6 +94,17 @@ class KotakSession:
             except KotakAuthError as exc:
                 if not _is_mobile_rejection(str(exc)):
                     raise
+                if attempt == len(spellings) == 1:
+                    #: One form, because `mobile_spellings` could not read the
+                    #: value as a mobile number at all. The reasoning below
+                    #: does not apply: a malformed number is precisely what the
+                    #: field check refuses, so this is not rate limiting and
+                    #: waiting will not help.
+                    raise KotakAuthError(
+                        "Kotak refused the mobile number, and it is not in a shape "
+                        "this app can read as a ten-digit Indian mobile number. "
+                        f"Kotak said: {exc}"
+                    ) from exc
                 if attempt == len(spellings):
                     #: Every form refused. Do not conclude the number is wrong:
                     #: measured against the live API, a malformed number is

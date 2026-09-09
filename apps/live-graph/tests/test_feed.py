@@ -623,3 +623,21 @@ def test_many_closes_for_one_drop_start_one_reconnect():
     #: One reconnect thread, so at most one further subscribe.
     th.Event().wait(0.4)
     assert len(started) - baseline <= 1, f"{len(started) - baseline} reconnects for one drop"
+
+
+def test_an_unreadable_number_is_not_blamed_on_a_burst():
+    """A malformed number has one form, so it is never a retry that upset Kotak.
+
+    The paced-retry message tells an operator to wait a minute before changing
+    anything, which is right when three well-formed spellings were refused and
+    wrong here: this is the one case where the number itself is demonstrably
+    the problem, and the app knew it before asking.
+    """
+    from livegraph.feed import KotakAuthError, KotakSession
+
+    client = _PickyClient(accepts="nothing at all")
+    session = KotakSession(_settings_with_mobile("98765"), client_factory=lambda _: client)
+    with pytest.raises(KotakAuthError, match="not in a shape this app can read"):
+        session.login(totp="123456")
+
+    assert client.tried == ["98765"]

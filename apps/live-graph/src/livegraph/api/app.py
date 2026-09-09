@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import ws
+from .logging_filters import install as quiet_polling_logs
 from .routes import admin, analyst, graph, market, news, scan, scratchpad
 from .static_ui import mount_ui
 from .state import AppState
@@ -34,6 +35,10 @@ def create_app(feed=None) -> FastAPI:
             yield
         finally:
             state.stop()
+
+    #: Before anything serves: several hundred identical 200s a minute buries
+    #: the lines that matter, a dropped feed socket among them.
+    quiet_polling_logs()
 
     app = FastAPI(title="livegraph", version="0.1.0", lifespan=lifespan)
     app.add_middleware(

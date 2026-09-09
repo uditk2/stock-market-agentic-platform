@@ -35,6 +35,14 @@ class NoFeed:
     def instrument_count(self) -> int:
         return 0
 
+    @property
+    def frames_received(self) -> int:
+        return 0
+
+    @property
+    def frames_unmatched(self) -> int:
+        return 0
+
     def latest(self, underlying: str) -> Tick | None:
         return None
 

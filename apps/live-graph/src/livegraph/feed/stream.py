@@ -20,6 +20,10 @@ logger = logging.getLogger(__name__)
 #: Kotak rejects oversized subscribe frames, so batch the token list.
 SUBSCRIBE_BATCH_SIZE = 100
 
+#: Rising, and finite. A blip clears in seconds; anything still failing after
+#: this is an expired session, which no amount of retrying will fix.
+RECONNECT_BACKOFF_SECONDS = (2, 5, 15, 30, 60)
+
 TickHandler = Callable[[Tick], None]
 
 
@@ -34,6 +38,18 @@ class TickStream:
         self._latest: dict[str, Tick] = {}
         self._handlers: list[TickHandler] = []
         self._connected = threading.Event()
+        #: "No prices" has three causes that look identical from outside: no
+        #: frame arrived, frames arrived carrying no price, or they carried a
+        #: token this stream never subscribed to. Counting them apart is the
+        #: difference between a diagnosis and a guess.
+        self._frames = 0
+        self._unmatched = 0
+        self._logged_sample = False
+        #: Kotak drops the socket — idle timeouts, network blips, a session
+        #: ending. Nothing here reconnected, so the first drop was permanent
+        #: and the app went on reporting a live feed with no prices behind it.
+        self._stopping = threading.Event()
+        self._reconnects = 0
 
     # ---- lifecycle ---------------------------------------------------
 
@@ -43,6 +59,9 @@ class TickStream:
         self._client.on_error = self._on_error
         self._client.on_close = self._on_close
         self._client.on_open = self._on_open
+        self._subscribe_all()
+
+    def _subscribe_all(self) -> None:
         for batch in self._batches():
             self._client.subscribe(
                 instrument_tokens=[i.as_subscription() for i in batch],
@@ -52,6 +71,8 @@ class TickStream:
         logger.info("Subscribed to %d instruments", len(self._instruments))
 
     def stop(self) -> None:
+        #: Set first, so the close this triggers is not mistaken for a drop.
+        self._stopping.set()
         for batch in self._batches():
             try:
                 self._client.un_subscribe(
@@ -82,17 +103,71 @@ class TickStream:
     # ---- socket callbacks (run on the SDK thread) --------------------
 
     def _on_message(self, message) -> None:
+        self._frames += 1
         try:
             ticks = self._normalizer.normalize_message(message)
         except Exception as exc:  # noqa: BLE001 - a bad frame must not kill the socket
             logger.warning("tick normalisation failed: %s", exc)
             return
         if not ticks:
+            self._unmatched += 1
+            self._log_unmatched_sample(message)
             return
         with self._lock:
             for tick in ticks:
                 self._latest[tick.underlying] = tick
         self._dispatch(ticks)
+
+    def _schedule_reconnect(self) -> None:
+        """Re-subscribe on a background thread, backing off between tries.
+
+        Re-subscribing is the whole of it: the SDK opens the socket as part of
+        subscribing, so there is no separate connect to repeat. What this
+        cannot fix is an expired Kotak session — that needs a fresh TOTP, which
+        only a person has — so it gives up rather than hammering, and leaves
+        `is_connected` false for the status endpoint to report.
+        """
+        if self._stopping.is_set():
+            return
+        threading.Thread(target=self._reconnect, name="kotak-reconnect", daemon=True).start()
+
+    def _reconnect(self) -> None:
+        for attempt, delay in enumerate(RECONNECT_BACKOFF_SECONDS, start=1):
+            if self._stopping.wait(delay):
+                return
+            try:
+                self._subscribe_all()
+            except Exception as exc:  # noqa: BLE001 - the SDK raises bare exceptions
+                logger.warning(
+                    "reconnect attempt %d of %d failed: %s",
+                    attempt, len(RECONNECT_BACKOFF_SECONDS), exc,
+                )
+                continue
+            self._reconnects += 1
+            logger.info("resubscribed after a dropped socket (%d so far)", self._reconnects)
+            return
+        logger.error(
+            "could not resubscribe after %d attempts; the Kotak session has most "
+            "likely expired and needs a fresh login",
+            len(RECONNECT_BACKOFF_SECONDS),
+        )
+
+    def _log_unmatched_sample(self, message) -> None:
+        """Report the shape of the first frame that yielded nothing, once.
+
+        Field names only. A frame that resolves to no instrument is either a
+        token this stream did not subscribe to or a shape the normaliser does
+        not know, and both are answered by seeing which keys arrived.
+        """
+        if self._logged_sample:
+            return
+        self._logged_sample = True
+        first = message[0] if isinstance(message, list) and message else message
+        keys = sorted(first) if isinstance(first, dict) else type(first).__name__
+        logger.warning(
+            "frame produced no tick; keys=%s, subscribed tokens sample=%s",
+            keys, list(self._by_token)[:3],
+        )
 
     def _dispatch(self, ticks: list[Tick]) -> None:
         if not self._handlers or self._loop is None:
@@ -107,9 +182,18 @@ class TickStream:
 
     def _on_close(self, message) -> None:
         self._connected.clear()
+        if self._stopping.is_set():
+            logger.debug("Kotak socket closed during shutdown: %s", message)
+            return
         logger.warning("Kotak socket closed: %s", message)
+        self._schedule_reconnect()
 
     def _on_error(self, message) -> None:
+        if self._stopping.is_set():
+            #: Teardown races: a response to our own unsubscribe arrives after
+            #: the session is gone. Not a fault, and not worth a red line.
+            logger.debug("Kotak socket error during shutdown: %s", message)
+            return
         logger.error("Kotak socket error: %s", message)
 
     # ---- read access -------------------------------------------------
@@ -132,6 +216,18 @@ class TickStream:
     @property
     def instrument_count(self) -> int:
         return len(self._instruments)
+
+    @property
+    def frames_received(self) -> int:
+        return self._frames
+
+    @property
+    def frames_unmatched(self) -> int:
+        return self._unmatched
+
+    @property
+    def reconnects(self) -> int:
+        return self._reconnects
 
 
 def _current_loop():

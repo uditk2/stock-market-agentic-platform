@@ -442,3 +442,87 @@ def test_the_baseline_of_a_change_percentage_can_be_checked():
     from_open = (tick.ltp - tick.day_open) / tick.day_open * 100
     assert round(from_close, 2) == tick.change_pct
     assert round(from_open, 2) != tick.change_pct
+
+
+def test_a_frame_that_matches_nothing_is_counted_not_swallowed():
+    """"No prices" has three causes that look identical from outside.
+
+    A silent socket, frames carrying no price, and frames for tokens this
+    stream never subscribed to all end as an empty screen. Counting them apart
+    is the difference between diagnosing and guessing.
+    """
+    from livegraph.feed import Instrument, Segment, TickStream
+
+    known = Instrument("11536", Segment.FNO, "RELIANCE25SEPFUT", "RELIANCE")
+    stream = TickStream(client=object(), instruments=[known])
+
+    stream._on_message({"tk": "99999", "ltp": "100"})   # not subscribed
+    stream._on_message({"tk": "11536"})                  # no price in the frame
+    assert stream.frames_received == 2
+    assert stream.frames_unmatched == 2
+
+    stream._on_message({"tk": "11536", "ltp": "2500"})
+    assert stream.frames_received == 3
+    assert stream.frames_unmatched == 2
+    assert stream.snapshot()["RELIANCE"].ltp == 2500.0
+
+
+# ---- a dropped socket ------------------------------------------------
+#
+# Kotak drops the connection: idle timeouts, network blips, a session ending.
+# Nothing reconnected, so the first drop was permanent — and because the mode
+# stayed "live", the app reported a working feed with no prices behind it for
+# the rest of the session.
+
+
+def test_a_dropped_socket_is_resubscribed():
+    import threading as th
+
+    from livegraph.feed import Instrument, Segment, TickStream, stream as stream_module
+
+    calls = []
+
+    class Client:
+        def subscribe(self, **kwargs):
+            calls.append(kwargs)
+
+        def un_subscribe(self, **kwargs):
+            pass
+
+    instruments = [Instrument("11536", Segment.FNO, "RELIANCE25SEPFUT", "RELIANCE")]
+    stream = TickStream(Client(), instruments, loop=None)
+    #: No waiting in a test; the backoff itself is not what is being checked.
+    stream_module.RECONNECT_BACKOFF_SECONDS = (0,)
+
+    stream.start()
+    assert len(calls) == 1
+
+    resubscribed = th.Event()
+    original = stream._subscribe_all
+
+    def watched():
+        original()
+        resubscribed.set()
+
+    stream._subscribe_all = watched
+    stream._on_close("Connection to remote host was lost.")
+
+    assert resubscribed.wait(timeout=2), "a dropped socket was never resubscribed"
+    assert stream.reconnects == 1
+
+
+def test_closing_during_shutdown_does_not_reconnect():
+    """`stop()` closes the socket itself; chasing that would be a loop."""
+    from livegraph.feed import Instrument, Segment, TickStream
+
+    class Client:
+        def subscribe(self, **kwargs): pass
+        def un_subscribe(self, **kwargs): pass
+
+    stream = TickStream(Client(), [Instrument("1", Segment.FNO, "INFY25SEPFUT", "INFY")])
+    stream.start()
+    stream.stop()
+    stream._on_close("The Session has been Closed!")
+
+    assert stream.reconnects == 0
+    assert not stream.is_connected

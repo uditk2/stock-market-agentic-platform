@@ -21,6 +21,8 @@ export interface FeedStatus {
   instruments: number;
   symbols_priced: number;
   detail: string;
+  frames_received: number;
+  frames_unmatched: number;
 }
 
 export interface Quote {

@@ -54,6 +54,14 @@ class FakeFeed:
             handler(tick)
 
     @property
+    def frames_received(self) -> int:
+        return len(self._ticks)
+
+    @property
+    def frames_unmatched(self) -> int:
+        return 0
+
+    @property
     def is_connected(self) -> bool:
         return self.started
 

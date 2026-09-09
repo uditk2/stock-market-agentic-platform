@@ -37,6 +37,10 @@ class FeedStatus:
     instruments: int
     symbols_priced: int
     detail: str = ""
+    #: Tells "the socket is silent" apart from "frames arrive and match
+    #: nothing". Both look like an empty screen and have different fixes.
+    frames_received: int = 0
+    frames_unmatched: int = 0
 
 
 class AppState:
@@ -228,6 +232,8 @@ class AppState:
             instruments=self.feed.instrument_count,
             symbols_priced=len(self.ticks()),
             detail=self.feed_detail,
+            frames_received=getattr(self.feed, "frames_received", 0),
+            frames_unmatched=getattr(self.feed, "frames_unmatched", 0),
         )
 
     def login_kotak(self, totp: str | None = None, mpin: str | None = None) -> tuple[bool, str]:

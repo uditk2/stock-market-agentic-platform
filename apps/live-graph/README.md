@@ -50,9 +50,9 @@ LIVEGRAPH_ADMIN_PASSWORD=something-only-you-know
 
 See [Admin](#admin).
 
-If you would rather not type credentials into a browser at all,
-`./scripts/setup-kotak.sh` fills `.env` with terminal echo off, printing
-nothing.
+If you would rather not type credentials into a browser at all, the same five
+values can go into `.env` as the `KOTAK_*` variables below. The Admin tab still
+shows what each one resolved to, and where from, without ever sending it back.
 
 ### A proxy of your own
 
@@ -98,20 +98,13 @@ actually imports at working versions. The Dockerfile does this already.
 
 ### Kotak credentials
 
-Streaming needs more than the REST `access_token`. Two helpers fill `.env`,
-both reading with terminal echo off so nothing reaches your scrollback:
-
-```bash
-./scripts/import-kotak-from-smap.sh   # recover what the old platform stored
-./scripts/setup-kotak.sh              # enter the rest by hand
-```
-
-The fields:
+Streaming needs more than the REST `access_token`. Set these in the Admin tab,
+or as environment variables in `.env`:
 
 | Variable | Where it comes from |
 |---|---|
 | `KOTAK_CONSUMER_KEY` | Neo app or web: Invest tab → Trade API card → generate application |
-| `KOTAK_MOBILE_NUMBER` | Registered mobile, with country code |
+| `KOTAK_MOBILE_NUMBER` | Registered mobile; any spelling, see below |
 | `KOTAK_UCC` | Unique Client Code, in your profile |
 | `KOTAK_MPIN` | Your Neo MPIN |
 | `KOTAK_TOTP_SECRET` | Base32 secret from the one-time TOTP registration |
@@ -120,38 +113,44 @@ TOTP registration is a one-time manual step at
 https://www.kotaksecurities.com/platform/kotak-neo-trade-api/ (Register for
 TOTP), where you scan a QR into an authenticator app.
 
-### Checking the Kotak path
+### When a login fails
 
 A failed feed reports one line — `Kotak login failed: ...` — which is enough to
-know something is wrong and not enough to fix it. `./scripts/check-kotak.py`
-runs the same path in stages and names the first that fails, so a wrong MPIN is
-distinguishable from clock skew, an unregistered TOTP, or a closed market:
+know something is wrong and not enough to fix it. The Admin tab answers the
+rest of it in place:
 
-```bash
-./scripts/check-kotak.py                # use .env and whatever Admin stored
-./scripts/check-kotak.py --prompt       # type the missing ones, in memory only
-./scripts/check-kotak.py --prompt --save   # ...and keep them
-./scripts/check-kotak.py --totp 123456  # supply the code non-interactively
-./scripts/check-kotak.py --skip-socket  # stop after the REST checks
-```
+- Every credential is shown by presence and origin, and, when it is set but
+  cannot work, by what is wrong with it. A mobile number that is not ten digits
+  and a TOTP secret that is not base32 both pass a presence check and then fail
+  at Kotak, which is the worst place to find out.
+- The current code is shown beside the secret it came from, which is how a
+  wrong secret is told apart from a wrong code.
+- Kotak's own words come back unchanged. Nothing here rewrites a broker error
+  into a guess about its cause.
 
-**It needs no TOTP secret.** Kotak's API takes the six-digit code, never the
-secret; storing the secret is only how the app logs itself back in each
-morning. With no usable secret configured the script asks for the code, which
-is also the only route open when a stored secret turns out to be wrong.
+**No TOTP secret is needed to log in.** Kotak's API takes the six-digit code,
+never the secret; storing the secret is only how the app logs itself back in
+each morning. With none stored, the tab takes the code from your authenticator.
 
-It also names the two values that are usually the wrong thing entirely — a
-mobile number without its country code, and a six-digit code pasted where the
-base32 secret belongs. Both pass every presence check and fail at Kotak as an
-unexplained rejection.
+Values are never returned to the browser — only whether each is present, where
+it came from, and whether it is usable.
 
-It goes through `livegraph.feed` rather than the SDK, so a pass means the app
-works rather than that the SDK does, and it prints no credential — fields are
-reported by presence, length and origin. It re-runs itself under `.venv` and
-normalises the working directory, so it behaves the same from anywhere.
+#### The mobile number
 
-Outside 09:15-15:30 IST the socket connects and stays quiet. That is a pass
-with zero ticks, and the script says so rather than calling it a failure.
+Kotak validates `mobileNumber` as a field before it checks the credentials
+behind it, and refuses the spelling it does not want with `Invalid field
+'MobileNumber'; must be a valid mobile number` — the identical failure a wrong
+number gives, from a number that is entirely correct. The login therefore sends
+the same ten digits as `+91XXXXXXXXXX`, then `91XXXXXXXXXX`, then bare, and
+stops at the first the field check lets through. Only when all three are
+refused does it say the number is wrong, because by then the format is ruled
+out and what is left is the digits or the UCC they belong to.
+
+Write it however you like in `.env` or the form; spaces, dashes, a leading `0`
+and a `+91` are all read as the same number.
+
+Outside 09:15-15:30 IST the socket connects and stays quiet. That is a working
+feed with no ticks, not a failure.
 
 ### Model access
 

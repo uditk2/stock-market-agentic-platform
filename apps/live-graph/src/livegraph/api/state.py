@@ -41,6 +41,9 @@ class FeedStatus:
     #: nothing". Both look like an empty screen and have different fixes.
     frames_received: int = 0
     frames_unmatched: int = 0
+    #: Kotak ended the session. The feed cannot recover on its own; the tab
+    #: should ask for a login rather than showing a live mode with no prices.
+    session_ended: bool = False
 
 
 class AppState:
@@ -234,6 +237,7 @@ class AppState:
             detail=self.feed_detail,
             frames_received=getattr(self.feed, "frames_received", 0),
             frames_unmatched=getattr(self.feed, "frames_unmatched", 0),
+            session_ended=getattr(self.feed, "session_ended", False),
         )
 
     def login_kotak(self, totp: str | None = None, mpin: str | None = None) -> tuple[bool, str]:

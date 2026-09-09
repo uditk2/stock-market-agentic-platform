@@ -23,11 +23,15 @@ export function FeedBadge({
     return <Badge variant="outline" className="gap-1.5">Connecting…</Badge>;
   }
 
-  const live = status.mode === "live";
+  //: A session Kotak ended leaves mode "live" with nothing behind it. Saying
+  //: "Live" there is the one thing this badge exists to prevent.
+  const live = status.mode === "live" && !status.session_ended;
   const label =
-    status.mode === "live"
+    live
       ? "Live · Kotak Neo"
-      : status.mode === "unconfigured"
+      : status.session_ended
+        ? "Session ended · log in again"
+        : status.mode === "unconfigured"
         ? "No feed · not configured"
         : status.mode === "error"
           ? "No feed · login failed"

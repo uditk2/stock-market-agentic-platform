@@ -43,6 +43,10 @@ class NoFeed:
     def frames_unmatched(self) -> int:
         return 0
 
+    @property
+    def session_ended(self) -> bool:
+        return False
+
     def latest(self, underlying: str) -> Tick | None:
         return None
 

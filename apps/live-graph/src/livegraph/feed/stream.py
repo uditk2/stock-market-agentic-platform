@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import threading
 from collections.abc import Callable, Iterable
 
@@ -23,6 +24,9 @@ SUBSCRIBE_BATCH_SIZE = 100
 #: Rising, and finite. A blip clears in seconds; anything still failing after
 #: this is an expired session, which no amount of retrying will fix.
 RECONNECT_BACKOFF_SECONDS = (2, 5, 15, 30, 60)
+
+#: Kotak's own words when the session, not merely the socket, has ended.
+_SESSION_ENDED = re.compile(r"session\s+has\s+been\s+closed", re.I)
 
 TickHandler = Callable[[Tick], None]
 
@@ -50,6 +54,15 @@ class TickStream:
         #: and the app went on reporting a live feed with no prices behind it.
         self._stopping = threading.Event()
         self._reconnects = 0
+        #: One reconnect at a time. Kotak emits a close per subscribed batch,
+        #: so a single drop arrives as many closes; spawning a thread for each
+        #: turned one dropped socket into a storm that resubscribed, closed,
+        #: and spawned again until the log was the only thing still working.
+        self._reconnecting = threading.Event()
+        #: Set when Kotak says the session itself has ended. No amount of
+        #: resubscribing fixes that: it needs a fresh TOTP, which only a person
+        #: has. Retrying against it is the loop described above.
+        self._session_ended = False
 
     # ---- lifecycle ---------------------------------------------------
 
@@ -127,30 +140,39 @@ class TickStream:
         only a person has — so it gives up rather than hammering, and leaves
         `is_connected` false for the status endpoint to report.
         """
-        if self._stopping.is_set():
+        if self._stopping.is_set() or self._session_ended:
             return
+        #: The guard is the whole point: without it every close starts a thread.
+        if self._reconnecting.is_set():
+            return
+        self._reconnecting.set()
         threading.Thread(target=self._reconnect, name="kotak-reconnect", daemon=True).start()
 
     def _reconnect(self) -> None:
-        for attempt, delay in enumerate(RECONNECT_BACKOFF_SECONDS, start=1):
-            if self._stopping.wait(delay):
-                return
-            try:
-                self._subscribe_all()
-            except Exception as exc:  # noqa: BLE001 - the SDK raises bare exceptions
-                logger.warning(
-                    "reconnect attempt %d of %d failed: %s",
-                    attempt, len(RECONNECT_BACKOFF_SECONDS), exc,
+        try:
+            for attempt, delay in enumerate(RECONNECT_BACKOFF_SECONDS, start=1):
+                if self._stopping.wait(delay) or self._session_ended:
+                    return
+                try:
+                    self._subscribe_all()
+                except Exception as exc:  # noqa: BLE001 - the SDK raises bare exceptions
+                    logger.warning(
+                        "reconnect attempt %d of %d failed: %s",
+                        attempt, len(RECONNECT_BACKOFF_SECONDS), exc,
+                    )
+                    continue
+                self._reconnects += 1
+                logger.info(
+                    "resubscribed after a dropped socket (%d so far)", self._reconnects
                 )
-                continue
-            self._reconnects += 1
-            logger.info("resubscribed after a dropped socket (%d so far)", self._reconnects)
-            return
-        logger.error(
-            "could not resubscribe after %d attempts; the Kotak session has most "
-            "likely expired and needs a fresh login",
-            len(RECONNECT_BACKOFF_SECONDS),
-        )
+                return
+            logger.error(
+                "could not resubscribe after %d attempts; log in again to start a "
+                "new session", len(RECONNECT_BACKOFF_SECONDS),
+            )
+        finally:
+            #: Released whatever happened, so a later, genuine drop can retry.
+            self._reconnecting.clear()
 
     def _log_unmatched_sample(self, message) -> None:
         """Report the shape of the first frame that yielded nothing, once.
@@ -185,10 +207,28 @@ class TickStream:
         if self._stopping.is_set():
             logger.debug("Kotak socket closed during shutdown: %s", message)
             return
+        if _SESSION_ENDED.search(str(message)):
+            if not self._session_ended:
+                self._session_ended = True
+                logger.error(
+                    "Kotak ended the session (%s). The socket cannot be recovered by "
+                    "resubscribing; log in again to start a new one.", message,
+                )
+            return
+        if self._reconnecting.is_set():
+            #: Already handling this drop. Kotak sends one close per batch, so
+            #: the rest of them are the same event arriving again.
+            logger.debug("Kotak socket closed again while reconnecting: %s", message)
+            return
         logger.warning("Kotak socket closed: %s", message)
         self._schedule_reconnect()
 
     def _on_error(self, message) -> None:
+        if self._session_ended or self._reconnecting.is_set():
+            #: Downstream of a close already reported. "socket is already
+            #: closed" is the same fact restated, once per pending frame.
+            logger.debug("Kotak socket error after close: %s", message)
+            return
         if self._stopping.is_set():
             #: Teardown races: a response to our own unsubscribe arrives after
             #: the session is gone. Not a fault, and not worth a red line.
@@ -228,6 +268,11 @@ class TickStream:
     @property
     def reconnects(self) -> int:
         return self._reconnects
+
+    @property
+    def session_ended(self) -> bool:
+        """Kotak closed the session; only a fresh login brings prices back."""
+        return self._session_ended
 
 
 def _current_loop():

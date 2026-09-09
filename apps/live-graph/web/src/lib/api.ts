@@ -23,6 +23,7 @@ export interface FeedStatus {
   detail: string;
   frames_received: number;
   frames_unmatched: number;
+  session_ended: boolean;
 }
 
 export interface Quote {

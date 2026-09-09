@@ -526,3 +526,70 @@ def test_closing_during_shutdown_does_not_reconnect():
 
     assert stream.reconnects == 0
     assert not stream.is_connected
+
+
+def test_a_session_that_kotak_closed_is_never_retried():
+    """The storm this prevents was mine, and it is worth stating plainly.
+
+    "The Session has been Closed!" is Kotak ending the session, not the socket
+    dropping. Resubscribing cannot recover it, and every attempt produced
+    another close, which produced another attempt. The container filled its log
+    with one line until it was stopped by hand.
+    """
+    from livegraph.feed import Instrument, Segment, TickStream
+
+    calls = []
+
+    class Client:
+        def subscribe(self, **kwargs):
+            calls.append(kwargs)
+
+        def un_subscribe(self, **kwargs):
+            pass
+
+    stream = TickStream(Client(), [Instrument("1", Segment.FNO, "INFY25SEPFUT", "INFY")])
+    stream.start()
+    assert len(calls) == 1
+
+    for _ in range(20):
+        stream._on_close("The Session has been Closed!")
+
+    assert stream.session_ended
+    assert len(calls) == 1, "a closed session must not be resubscribed"
+    assert stream.reconnects == 0
+
+
+def test_many_closes_for_one_drop_start_one_reconnect():
+    """Kotak sends a close per subscribed batch, so a drop arrives many times.
+
+    Without a guard each one started a thread, and each resubscribe produced
+    more closes. One drop has to mean one reconnect.
+    """
+    import threading as th
+
+    from livegraph.feed import Instrument, Segment, TickStream, stream as stream_module
+
+    stream_module.RECONNECT_BACKOFF_SECONDS = (0.05,)
+    started = []
+    release = th.Event()
+
+    class Client:
+        def subscribe(self, **kwargs):
+            started.append(kwargs)
+            #: Hold the first reconnect open so the later closes race it.
+            release.wait(timeout=1)
+
+        def un_subscribe(self, **kwargs):
+            pass
+
+    stream = TickStream(Client(), [Instrument("1", Segment.FNO, "INFY25SEPFUT", "INFY")])
+    stream.start()
+    baseline = len(started)
+
+    for _ in range(15):
+        stream._on_close("Connection to remote host was lost.")
+    release.set()
+
+    #: One reconnect thread, so at most one further subscribe.
+    th.Event().wait(0.4)
+    assert len(started) - baseline <= 1, f"{len(started) - baseline} reconnects for one drop"

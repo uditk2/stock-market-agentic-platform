@@ -33,9 +33,18 @@ Source = Literal["store", "env", "unset"]
 
 #: Only these may be written. An admin page that can set arbitrary keys is an
 #: admin page that can set LIVEGRAPH_SANDBOX_WORKER_DIR.
+#: The MPIN is deliberately absent. Together with a TOTP code it is the whole
+#: account, so keeping it on disk beside the secret that generates codes would
+#: put both halves in one file. It is typed at each login instead.
+NEVER_STORED: frozenset[str] = frozenset({"mpin"})
+
 KOTAK_FIELDS: frozenset[str] = frozenset(
-    {"consumer_key", "mobile_number", "ucc", "mpin", "totp_secret"}
+    {"consumer_key", "mobile_number", "ucc", "totp_secret"}
 )
+
+#: Fields where internal spacing is presentation, not content. Neither a phone
+#: number nor a base32 secret means anything different for being grouped.
+_WHITESPACE_INSENSITIVE: frozenset[str] = frozenset({"mobile_number", "totp_secret"})
 
 
 def _path() -> Path:
@@ -61,6 +70,14 @@ def read() -> dict[str, str]:
     kotak = loaded.get("kotak") if isinstance(loaded, dict) else None
     if not isinstance(kotak, dict):
         return {}
+
+    if stale := NEVER_STORED & set(kotak):
+        #: Written by a version that allowed it. Delete rather than ignore: an
+        #: MPIN nobody reads is still an MPIN sitting in a file.
+        logger.warning("removing %s from the credential store", ", ".join(sorted(stale)))
+        _write_atomically({"kotak": {k: v for k, v in kotak.items() if k not in stale}})
+        kotak = {k: v for k, v in kotak.items() if k not in stale}
+
     return {
         name: value
         for name, value in kotak.items()
@@ -82,7 +99,7 @@ def write(values: dict[str, str]) -> list[str]:
     for name, value in values.items():
         if name not in KOTAK_FIELDS:
             continue
-        cleaned = value.strip()
+        cleaned = _normalise(name, value)
         if cleaned:
             if current.get(name) != cleaned:
                 changed.append(name)
@@ -94,6 +111,24 @@ def write(values: dict[str, str]) -> list[str]:
     if changed:
         _write_atomically({"kotak": updated})
     return changed
+
+
+def _normalise(name: str, value: str) -> str:
+    """Tidy a pasted value into the form the broker expects.
+
+    People paste credentials out of other applications, which format them for
+    reading rather than for sending. A mobile number copied as "+91 98765 43210"
+    is rejected by Kotak as an invalid field, and the rejection names the field
+    without saying what is wrong with it, so the space survives every check the
+    app makes and fails only at the broker.
+
+    `feed.totp` already tolerates a spaced base32 secret for the same reason;
+    this extends the courtesy to the one other field that is commonly spaced.
+    """
+    cleaned = value.strip()
+    if name in _WHITESPACE_INSENSITIVE:
+        cleaned = "".join(cleaned.split())
+    return cleaned
 
 
 def sources(resolved: dict[str, str]) -> dict[str, Source]:

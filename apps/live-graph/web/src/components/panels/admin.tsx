@@ -36,6 +36,11 @@ const MODELS_POLL_MS = 30000;
 
 type Outcome = { ok: boolean; message: string } | null;
 
+//: Typed in the clear. These identify the account rather than authorise it, and
+//: seeing them is how a typo gets caught before Kotak rejects it — a stray space
+//: in a phone number is invisible behind dots and fatal at login.
+const VISIBLE_FIELDS = new Set(["mobile_number", "ucc"]);
+
 const SOURCE_LABEL: Record<CredentialSource, string> = {
   store: "set here",
   env: "from .env",
@@ -259,9 +264,9 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
         <CardHeader>
           <CardTitle>Kotak Neo session</CardTitle>
           <CardDescription>
-            Sessions expire daily, so a fresh login is needed each trading day. The TOTP
-            code below is derived from your registered secret and rotates every 30 seconds;
-            it is not something you generate or paste in.
+            Sessions expire daily, so a fresh login is needed each trading morning. The
+            six-digit code comes from your authenticator app; store the TOTP secret below
+            and the app will derive it for you instead.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -297,7 +302,7 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
             status={status}
             totpAvailable={Boolean(totp?.available)}
             busy={busy}
-            onLogin={(code) => run(async () => (await api.brokerLogin(code)).message)}
+            onLogin={(secrets) => run(async () => (await api.brokerLogin(secrets)).message)}
           />
 
           {result && (
@@ -322,7 +327,7 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
       </Card>
 
       <CredentialsForm
-        fields={status.credentials}
+        fields={status.credentials.filter((f) => f.name !== "mpin")}
         busy={busy}
         onSave={(values) =>
           run(async () => (await api.saveCredentials(values)).message)
@@ -443,12 +448,15 @@ function BrokerLogin({
   status: BrokerStatus;
   totpAvailable: boolean;
   busy: boolean;
-  onLogin: (code?: string) => Promise<void>;
+  onLogin: (secrets: { totp?: string; mpin?: string }) => Promise<void>;
 }) {
   const [code, setCode] = useState("");
+  const [mpin, setMpin] = useState("");
 
-  //: Everything but the secret. A code typed here stands in for it.
-  const missing = status.credentials.filter((f) => !f.set && f.name !== "totp_secret");
+  //: Neither of these is stored, so neither counts as missing configuration.
+  const missing = status.credentials.filter(
+    (f) => !f.set && f.name !== "totp_secret" && f.name !== "mpin",
+  );
   if (missing.length) {
     return (
       <p className="text-muted-foreground text-sm">
@@ -457,51 +465,71 @@ function BrokerLogin({
     );
   }
 
-  if (totpAvailable) {
-    return (
-      <div className="flex flex-wrap items-center gap-3">
-        <Button size="sm" disabled={busy} onClick={() => onLogin()}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
-          Log in now
-        </Button>
-        <span className="text-muted-foreground text-sm">
-          Using the code derived from your stored secret.
-        </span>
-      </div>
-    );
-  }
+  const needsCode = !totpAvailable;
+  const ready = mpin.length >= 4 && (!needsCode || code.length === 6);
+
+  const submit = () =>
+    onLogin({ totp: needsCode ? code : undefined, mpin }).then(() => {
+      setCode("");
+      setMpin("");
+    });
 
   return (
     <form
-      className="space-y-2"
+      className="space-y-3"
       onSubmit={(event) => {
         event.preventDefault();
-        if (code.length === 6) onLogin(code).then(() => setCode(""));
+        if (ready) submit();
       }}
     >
-      <Label htmlFor="totp-code" className="text-sm font-medium">
-        Six-digit code from your authenticator
-      </Label>
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          id="totp-code"
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          placeholder="000000"
-          maxLength={6}
-          className="max-w-[9rem] font-mono text-lg tracking-[0.3em] tabular-nums"
-          value={code}
-          //: Digits only, so a pasted code with spaces still submits.
-          onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
-        />
-        <Button type="submit" size="sm" disabled={busy || code.length !== 6}>
+      <div className="flex flex-wrap items-end gap-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="mpin" className="text-sm font-medium">
+            MPIN
+          </Label>
+          <Input
+            id="mpin"
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="••••••"
+            className="max-w-[9rem] font-mono text-lg tracking-[0.2em]"
+            value={mpin}
+            onChange={(event) => setMpin(event.target.value.replace(/\D/g, "").slice(0, 8))}
+          />
+        </div>
+
+        {needsCode && (
+          <div className="space-y-1.5">
+            <Label htmlFor="totp-code" className="text-sm font-medium">
+              Six-digit code
+            </Label>
+            <Input
+              id="totp-code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              maxLength={6}
+              className="max-w-[9rem] font-mono text-lg tracking-[0.3em] tabular-nums"
+              value={code}
+              //: Digits only, so a code pasted with spaces still submits.
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+            />
+          </div>
+        )}
+
+        <Button type="submit" size="sm" disabled={busy || !ready}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <LogIn className="size-4" />}
           Log in
         </Button>
       </div>
+
       <p className="text-muted-foreground text-xs">
-        No TOTP secret is stored, so the code is typed each morning. Store the secret
-        below to have the app derive it instead.
+        The MPIN is never stored — it is typed at each login, so that it is not on disk
+        beside the secret that generates codes.
+        {needsCode
+          ? " No TOTP secret is stored either, so the code is typed too; store the secret below to have the app derive it."
+          : " The code is derived from your stored secret."}
       </p>
     </form>
   );
@@ -598,7 +626,10 @@ function CredentialsForm({
               </div>
               <Input
                 id={field.name}
-                type="password"
+                //: A phone number is not a secret in the way an MPIN is, and
+                //: masking it hides exactly the faults that break a login: a
+                //: stray space, a missing country code, a transposed digit.
+                type={VISIBLE_FIELDS.has(field.name) ? "text" : "password"}
                 autoComplete="off"
                 placeholder={field.set ? "Leave empty to keep the current value" : field.hint}
                 value={values[field.name] ?? ""}

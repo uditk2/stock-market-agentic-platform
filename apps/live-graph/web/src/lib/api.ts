@@ -316,10 +316,10 @@ export const api = {
     ),
   brokerStatus: () => get<BrokerStatus>("/api/admin/broker"),
   brokerTotp: () => get<TotpState>("/api/admin/broker/totp"),
-  brokerLogin: (totp?: string) =>
+  brokerLogin: (secrets: { totp?: string; mpin?: string }) =>
     post<{ ok: boolean; message: string; session_since: number | null }>(
       "/api/admin/broker/login",
-      { totp: totp ?? null },
+      { totp: secrets.totp ?? null, mpin: secrets.mpin ?? null },
     ),
   saveCredentials: (values: Record<string, string>) =>
     send<CredentialsResult>("PUT", "/api/admin/broker/credentials", { values }),

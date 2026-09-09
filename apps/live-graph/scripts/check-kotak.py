@@ -70,6 +70,10 @@ PASS, FAIL, INFO, WARN = "  PASS", "  FAIL", "  ....", "  WARN"
 #: seconds, which suits displaying a code and not spending one.
 MIN_TOTP_SECONDS = 6
 
+#: Supplied per run rather than required in the store. The MPIN is never stored
+#: by the app at all; the secret may be, and is asked for when it is not.
+_ASKED_FOR = frozenset({"totp_secret", "mpin"})
+
 
 class Stage:
     """A named step that prints its own verdict and stops the run on failure."""
@@ -109,16 +113,16 @@ def main() -> int:
     with Stage(2, "Credentials resolve"):
         settings = resolve_credentials(options)
         report_fields(settings)
-        #: The secret only exists to derive a code unattended. This script has a
-        #: person sitting at it, so it can ask for the six digits instead and
-        #: needs the other four.
-        missing = [f for f in settings.missing_fields() if f != "totp_secret"]
+        #: Neither the secret nor the MPIN has to be stored: this script has a
+        #: person sitting at it, so it asks for both. What must be configured
+        #: is the three that identify the account.
+        missing = [f for f in settings.missing_fields() if f not in _ASKED_FOR]
         if missing:
             raise RuntimeError(
                 f"missing or placeholder: {', '.join(missing)}. "
                 "Re-run with --prompt, use the Admin tab, or ./scripts/setup-kotak.sh"
             )
-        print(f"{PASS} the four required credentials are present")
+        print(f"{PASS} the stored credentials this needs are present")
         warn_about_shapes(settings)
 
     with Stage(3, "A TOTP code is available"):
@@ -127,8 +131,9 @@ def main() -> int:
     with Stage(4, "Login: totp_login then totp_validate"):
         from livegraph.feed import KotakSession
 
+        mpin = resolve_mpin(settings, options)
         session = KotakSession(settings)
-        client = session.login(totp=totp)
+        client = session.login(totp=totp, mpin=mpin)
         print(f"{PASS} session established for UCC ending {settings.ucc[-3:]}")
 
     with Stage(5, "Scrip master downloads and parses"):
@@ -226,6 +231,10 @@ def parse_args() -> argparse.Namespace:
         "--totp", metavar="CODE",
         help="the six-digit code, instead of deriving it or being asked",
     )
+    parser.add_argument(
+        "--mpin", metavar="PIN",
+        help="the trading PIN, instead of reading .env or being asked",
+    )
     parser.add_argument("--skip-socket", action="store_true", help="stop after the REST checks")
     return parser.parse_args()
 
@@ -287,6 +296,21 @@ def resolve_totp(settings, options: argparse.Namespace) -> str:
     return ask_for_totp()
 
 
+def resolve_mpin(settings, options: argparse.Namespace) -> str | None:
+    """The trading PIN, from the command line, the environment, or the keyboard.
+
+    The app never writes this to its credential store: an MPIN beside the secret
+    that generates codes is the whole account in one file. `.env` may still hold
+    one for an unattended deployment, and that is honoured here.
+    """
+    if options.mpin:
+        return options.mpin
+    if "mpin" not in settings.missing_fields():
+        print(f"{INFO} using the MPIN from .env")
+        return None
+    return getpass.getpass("    MPIN (hidden): ").strip()
+
+
 def ask_for_totp() -> str:
     """Read the code from the authenticator app.
 
@@ -308,9 +332,11 @@ def resolve_credentials(options: argparse.Namespace):
     if not options.prompt:
         return settings
 
+    from livegraph.credentials import NEVER_STORED
+
     typed: dict[str, str] = {}
     for name in KotakSettings.REQUIRED:
-        if name not in settings.missing_fields():
+        if name not in settings.missing_fields() or name in NEVER_STORED:
             continue
         #: Storing the secret is what lets the app re-login by itself each day.
         #: Declining is a real choice, not a skipped step, so say what it costs.

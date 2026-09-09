@@ -206,11 +206,23 @@ worse than no edits at all. Each field says where its value came from — `set
 here`, `from .env`, or `not set` — so an override is visible rather than
 inferred. Clearing a field hands it back to `.env`.
 
+The mobile number and the UCC are shown unmasked. They identify the account
+rather than authorise it, and seeing them is how a typo is caught before Kotak
+rejects it — a stray space in a phone number is invisible behind dots and fatal
+at login, which is why pasted spacing is now stripped from both the number and
+the base32 secret.
+
 Values are written to `LIVEGRAPH_STATE_DIR` as `credentials.json`, mode 0600,
 replaced atomically. In the container that path is a named volume, so what you
 type survives `up --build`; from source it is `.livegraph/`, which is
 git-ignored. Values are never returned by any endpoint and never logged — only
 field names are.
+
+**The MPIN is never stored.** Together with a code it is the whole account, so
+keeping it on disk beside the secret that generates codes would put both halves
+in one file. It is typed at each login instead, and a store written by an
+earlier version has it deleted on the next read rather than merely ignored.
+`.env` may still carry one for a deployment that logs in unattended.
 
 **The daily login takes a typed code.** Kotak's API wants the six digits, not
 the secret, and the secret is only how the app logs itself back in unattended.

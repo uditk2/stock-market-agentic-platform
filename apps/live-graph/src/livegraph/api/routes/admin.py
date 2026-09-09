@@ -29,7 +29,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from ...credentials import KOTAK_FIELDS, sources, write
+from ...credentials import KOTAK_FIELDS, NEVER_STORED, sources, write
 from ...feed import KotakSettings
 from ...feed.config import load_kotak_settings, mobile_digits
 from ...feed.totp import TotpError, current_code
@@ -86,9 +86,15 @@ class BrokerStatusOut(BaseModel):
 
 
 class LoginIn(BaseModel):
-    """The six-digit code, when there is no stored secret to derive one from."""
+    """The values supplied per login rather than kept on disk.
+
+    `mpin` is always one of these: it is never stored, so a login either
+    carries it or fails. `totp` is optional, needed only when no usable secret
+    is configured to derive a code from.
+    """
 
     totp: str | None = None
+    mpin: str | None = None
 
 
 class LoginResultOut(BaseModel):
@@ -248,6 +254,14 @@ def set_credentials(body: CredentialsIn) -> CredentialsResultOut:
     app is a separate concern, and `login_kotak` already says a restart is what
     picks up working credentials, so the honest thing is to save and say so.
     """
+    if refused := sorted(NEVER_STORED & set(body.values)):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"{', '.join(refused)} is never stored. It is typed at each login, "
+                "so that it is not on disk beside the secret that generates codes."
+            ),
+        )
     unknown = sorted(set(body.values) - KOTAK_FIELDS)
     if unknown:
         raise HTTPException(status_code=400, detail=f"Unknown fields: {', '.join(unknown)}")
@@ -287,17 +301,19 @@ def login(body: LoginIn | None = None, state: AppState = Depends(get_state)) -> 
     Sessions expire daily, so this is the first thing done each trading morning.
     """
     totp = (body.totp or "").strip() if body else ""
+    mpin = (body.mpin or "").strip() if body else ""
     settings = load_kotak_settings()
-    #: A supplied code is what the stored secret would have produced, so the
-    #: secret stops being required the moment one is typed in.
-    missing = [f for f in settings.missing_fields() if not (totp and f == "totp_secret")]
+    #: A supplied value is what storing it would have provided, so each one
+    #: stops being required the moment it is typed in.
+    supplied = {"totp_secret": bool(totp), "mpin": bool(mpin)}
+    missing = [f for f in settings.missing_fields() if not supplied.get(f)]
     if missing:
         raise HTTPException(
             status_code=400, detail=f"Missing credentials: {', '.join(missing)}",
         )
     if totp and not (totp.isdigit() and len(totp) == 6):
         raise HTTPException(status_code=400, detail="The TOTP code is six digits.")
-    ok, message = state.login_kotak(totp=totp or None)
+    ok, message = state.login_kotak(totp=totp or None, mpin=mpin or None)
     if not ok:
         raise HTTPException(status_code=502, detail=message)
     session = state.kotak_session

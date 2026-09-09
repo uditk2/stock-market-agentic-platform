@@ -221,12 +221,13 @@ class AppState:
             detail=self.feed_detail,
         )
 
-    def login_kotak(self, totp: str | None = None) -> tuple[bool, str]:
+    def login_kotak(self, totp: str | None = None, mpin: str | None = None) -> tuple[bool, str]:
         """Establish a Kotak session on demand. Sessions expire daily.
 
-        `totp` is the six-digit code. Passing one removes the need for a stored
-        secret, which is what lets somebody log in from the Admin tab by
-        reading their authenticator instead of teaching the app to generate it.
+        `totp` and `mpin` are the two per-login values. Passing either removes
+        the need for it to be stored, which is what lets somebody log in from
+        the Admin tab with the code read off their authenticator and the MPIN
+        typed rather than written to disk.
         """
         from ..feed import KotakAuthError, KotakSession
 
@@ -234,7 +235,7 @@ class AppState:
         session = self.kotak_session or KotakSession(settings)
         self.kotak_session = session
         try:
-            session.login(totp=totp)
+            session.login(totp=totp, mpin=mpin)
         except KotakAuthError as exc:
             session.record_failure(str(exc))
             logger.warning("Kotak login failed: %s", exc)
@@ -309,7 +310,7 @@ class AppState:
             sector_members=self._sector_members(symbols),
             news={
                 s: [
-                    {"title": i.title, "ts": i.ts, "source": i.source}
+                    {"title": i.title, "ts": i.ts, "source": i.source, "kind": str(i.kind)}
                     for i in self.news.for_node(s, limit=5)
                 ]
                 for s in symbols

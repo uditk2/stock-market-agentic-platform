@@ -185,13 +185,13 @@ def test_a_stored_value_overrides_the_environment(monkeypatch):
 
 
 def test_clearing_a_field_hands_it_back_to_the_environment(monkeypatch):
-    monkeypatch.setenv("KOTAK_MPIN", "env-value")
-    credentials.write({"mpin": "typed"})
-    assert credentials.sources({"mpin": "typed"})["mpin"] == "store"
+    monkeypatch.setenv("KOTAK_CONSUMER_KEY", "env-value")
+    credentials.write({"consumer_key": "typed"})
+    assert credentials.sources({"consumer_key": "typed"})["consumer_key"] == "store"
 
-    credentials.write({"mpin": ""})
-    assert credentials.sources({"mpin": "env-value"})["mpin"] == "env"
-    assert credentials.sources({"mpin": ""})["mpin"] == "unset"
+    credentials.write({"consumer_key": ""})
+    assert credentials.sources({"consumer_key": "env-value"})["consumer_key"] == "env"
+    assert credentials.sources({"consumer_key": ""})["consumer_key"] == "unset"
 
 
 def test_the_store_is_written_readable_only_by_its_owner():
@@ -396,53 +396,51 @@ def test_every_admin_route_but_the_session_handshake_needs_a_session(client):
 def test_a_typed_code_removes_the_need_for_a_stored_secret(unlocked, monkeypatch):
     """The morning path: four credentials stored, the code read off a phone."""
     credentials.write({
-        "consumer_key": "k", "mobile_number": "+919876543210",
-        "ucc": "ABC12", "mpin": "1234",
+        "consumer_key": "k", "mobile_number": "+919876543210", "ucc": "ABC12",
     })
     seen = {}
 
-    def fake_login(totp=None):
-        seen["totp"] = totp
-        return True, "Session established."
-
     monkeypatch.setattr(
-        "livegraph.api.state.AppState.login_kotak", lambda self, totp=None: fake_login(totp)
+        "livegraph.api.state.AppState.login_kotak",
+        lambda self, totp=None, mpin=None: (seen.update(totp=totp, mpin=mpin), (True, "ok"))[1],
     )
     try:
-        response = unlocked.post("/api/admin/broker/login", json={"totp": "123456"})
+        response = unlocked.post(
+            "/api/admin/broker/login", json={"totp": "123456", "mpin": "1234"}
+        )
         assert response.status_code == 200
-        assert seen["totp"] == "123456"
+        assert seen == {"totp": "123456", "mpin": "1234"}
     finally:
-        for field in ("consumer_key", "mobile_number", "ucc", "mpin"):
+        for field in ("consumer_key", "mobile_number", "ucc"):
             credentials.write({field: ""})
 
 
-def test_without_a_code_the_missing_secret_is_still_refused(unlocked):
+def test_without_a_code_or_an_mpin_the_login_is_refused(unlocked):
+    """Neither is stored, so a login has to carry both or say what is missing."""
     credentials.write({
-        "consumer_key": "k", "mobile_number": "+919876543210",
-        "ucc": "ABC12", "mpin": "1234",
+        "consumer_key": "k", "mobile_number": "+919876543210", "ucc": "ABC12",
     })
     try:
-        response = unlocked.post("/api/admin/broker/login", json={})
-        assert response.status_code == 400
-        assert "totp_secret" in response.json()["detail"]
+        detail = unlocked.post("/api/admin/broker/login", json={}).json()["detail"]
+        assert "totp_secret" in detail and "mpin" in detail
     finally:
-        for field in ("consumer_key", "mobile_number", "ucc", "mpin"):
+        for field in ("consumer_key", "mobile_number", "ucc"):
             credentials.write({field: ""})
 
 
 def test_a_malformed_code_is_rejected_before_reaching_kotak(unlocked):
     credentials.write({
-        "consumer_key": "k", "mobile_number": "+919876543210",
-        "ucc": "ABC12", "mpin": "1234",
+        "consumer_key": "k", "mobile_number": "+919876543210", "ucc": "ABC12",
     })
     try:
         for bad in ("12345", "1234567", "abcdef"):
-            response = unlocked.post("/api/admin/broker/login", json={"totp": bad})
+            response = unlocked.post(
+                "/api/admin/broker/login", json={"totp": bad, "mpin": "1234"}
+            )
             assert response.status_code == 400, bad
             assert "six digits" in response.json()["detail"]
     finally:
-        for field in ("consumer_key", "mobile_number", "ucc", "mpin"):
+        for field in ("consumer_key", "mobile_number", "ucc"):
             credentials.write({field: ""})
 
 
@@ -487,3 +485,62 @@ def test_a_usable_mobile_number_has_no_problem(unlocked, monkeypatch):
     assert fields["mobile_number"]["problem"] is None
     #: Six digits is a code, not a base32 secret, and it will never derive one.
     assert fields["totp_secret"]["problem"] == "not a usable base32 secret"
+
+
+def test_a_spaced_mobile_number_is_stored_without_the_spaces():
+    """Pasted from a contacts app as "+91 98765 43210", which Kotak rejects.
+
+    The rejection names the field and not the fault, and the space survives
+    every check the app makes, so it fails only at the broker — after a login
+    attempt that spends a TOTP code.
+    """
+    credentials.write({"mobile_number": "+91 98765 43210"})
+    try:
+        assert credentials.read()["mobile_number"] == "+919876543210"
+    finally:
+        credentials.write({"mobile_number": ""})
+
+
+def test_a_spaced_totp_secret_is_stored_without_the_spaces():
+    """Authenticator apps display the secret in groups of four."""
+    credentials.write({"totp_secret": "JBSW Y3DP EHPK 3PXP"})
+    try:
+        assert credentials.read()["totp_secret"] == SECRET
+    finally:
+        credentials.write({"totp_secret": ""})
+
+
+def test_spacing_is_not_stripped_from_fields_where_it_could_be_content():
+    """An MPIN or a consumer key is taken exactly as given, minus the edges."""
+    credentials.write({"consumer_key": "  abc def  "})
+    try:
+        assert credentials.read()["consumer_key"] == "abc def"
+    finally:
+        credentials.write({"consumer_key": ""})
+
+
+def test_the_mpin_cannot_be_written_to_the_store(unlocked):
+    """Refused with a reason, not silently dropped.
+
+    An MPIN and a TOTP secret in one file is the whole account in one file.
+    Silently ignoring the write would leave someone believing it was saved.
+    """
+    response = unlocked.put("/api/admin/broker/credentials", json={"values": {"mpin": "1234"}})
+    assert response.status_code == 400
+    assert "never stored" in response.json()["detail"]
+    assert "mpin" not in credentials.read()
+
+
+def test_an_mpin_left_by_an_older_version_is_deleted_on_read(tmp_path):
+    """Ignoring it is not enough: an MPIN nobody reads is still one on disk."""
+    import json
+
+    from livegraph.paths import state_dir
+
+    path = state_dir() / "credentials.json"
+    path.write_text(json.dumps({"kotak": {"ucc": "ABC12", "mpin": "1234"}}))
+    try:
+        assert credentials.read() == {"ucc": "ABC12"}
+        assert "mpin" not in json.loads(path.read_text())["kotak"]
+    finally:
+        path.unlink(missing_ok=True)

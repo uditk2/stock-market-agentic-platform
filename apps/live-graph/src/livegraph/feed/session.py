@@ -39,19 +39,20 @@ class KotakSession:
     def is_active(self) -> bool:
         return self._client is not None
 
-    def login(self, totp: str | None = None):
-        """Establish a trading session. Pass `totp` to supply the code yourself.
+    def login(self, totp: str | None = None, mpin: str | None = None):
+        """Establish a trading session, with the two per-login values optional.
 
-        The stored secret exists so the app can derive a code unattended for the
-        daily re-login. When a caller hands one over there is nothing left to
-        derive, so the secret stops being required — which is what lets a person
-        log in by reading the code off their authenticator instead of teaching
-        the app to generate it.
+        `totp` is the six-digit code and `mpin` the trading PIN. Both can be
+        stored, and neither has to be: supplying one satisfies the requirement
+        that storing it would have met. That is what lets a person log in from
+        the Admin tab reading their authenticator, with the MPIN typed and
+        never written down, while an unattended deployment keeps both in .env.
         """
+        supplied = {"totp_secret": bool(totp), "mpin": bool(mpin)}
         missing = [
             field
             for field in self._settings.missing_fields()
-            if not (totp and field == "totp_secret")
+            if not supplied.get(field)
         ]
         if missing:
             raise KotakAuthError(f"Missing Kotak credentials: {', '.join(missing)}")
@@ -62,7 +63,9 @@ class KotakSession:
         except TotpError as exc:
             raise KotakAuthError(str(exc)) from exc
         self._totp_login(client, code)
-        self._call(client.totp_validate, "totp_validate", mpin=self._settings.mpin)
+        self._call(
+            client.totp_validate, "totp_validate", mpin=mpin or self._settings.mpin
+        )
         self._client = client
         self._established_at = time.time()
         self._last_error = None

@@ -42,6 +42,11 @@ class Tick:
     open_interest: int | None
     volume: int | None
     ts: float
+    #: Kotak's own baseline fields, kept so `change_pct` can be checked rather
+    #: than trusted: it arrives computed, and which of these it is measured
+    #: against is the broker's convention, not ours.
+    prev_close: float | None = None
+    day_open: float | None = None
 
     @property
     def is_futures(self) -> bool:

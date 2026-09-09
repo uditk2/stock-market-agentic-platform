@@ -398,3 +398,47 @@ def test_a_rejection_that_is_not_about_the_mobile_field_is_raised_at_once():
     with pytest.raises(KotakAuthError, match="Invalid TOTP"):
         session.login(totp="000000")
     assert len(calls) == 1
+
+
+# ---- what the change percentage is measured against --------------------
+
+
+def test_previous_close_is_never_mistaken_for_the_last_price():
+    """`c` is the previous day's close in Kotak's socket protocol.
+
+    It was in the last-price key list, so a partial frame carrying `c` and no
+    `ltp` — Kotak sends only what changed — would have been published as a live
+    price. A stale price that looks live is worse than a missing one.
+    """
+    from livegraph.feed import Instrument, Segment, TickNormalizer
+
+    index = {"11536": Instrument("11536", Segment.FNO, "RELIANCE25SEPFUT", "RELIANCE")}
+    normalizer = TickNormalizer(index)
+
+    assert normalizer.normalize_one({"tk": "11536", "c": "2400"}) is None
+
+    tick = normalizer.normalize_one(
+        {"tk": "11536", "ltp": "2500", "c": "2400", "op": "2450", "nc": "4.17"}
+    )
+    assert tick.ltp == 2500.0
+    assert tick.prev_close == 2400.0
+    assert tick.day_open == 2450.0
+
+
+def test_the_baseline_of_a_change_percentage_can_be_checked():
+    """The app forwards Kotak's percentage rather than computing one.
+
+    Carrying both baselines makes the convention measurable instead of assumed:
+    4.17% off 2400 is the previous close, not the 2450 open.
+    """
+    from livegraph.feed import Instrument, Segment, TickNormalizer
+
+    index = {"11536": Instrument("11536", Segment.FNO, "RELIANCE25SEPFUT", "RELIANCE")}
+    tick = TickNormalizer(index).normalize_one(
+        {"tk": "11536", "ltp": "2500", "c": "2400", "op": "2450", "nc": "4.17"}
+    )
+
+    from_close = (tick.ltp - tick.prev_close) / tick.prev_close * 100
+    from_open = (tick.ltp - tick.day_open) / tick.day_open * 100
+    assert round(from_close, 2) == tick.change_pct
+    assert round(from_open, 2) != tick.change_pct

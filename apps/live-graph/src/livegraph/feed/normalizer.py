@@ -12,7 +12,13 @@ from typing import Any
 
 from .models import Instrument, Segment, Tick
 
-_LTP_KEYS = ("ltp", "last_traded_price", "lp", "c", "close")
+#: `c` and `close` are deliberately absent. In Kotak's socket protocol they are
+#: the *previous day's* close, not the last price, so a partial frame carrying
+#: `c` without `ltp` would have been read as a live price and published a stale
+#: one. The REST spellings that do mean last price are listed instead.
+_LTP_KEYS = ("ltp", "last_traded_price", "lp", "last_price")
+_PREV_CLOSE_KEYS = ("c", "close", "prev_day_close", "ic")
+_OPEN_KEYS = ("op", "open", "openingPrice")
 _CHANGE_PCT_KEYS = ("nc", "change_percent", "pc", "chgp")
 _OI_KEYS = ("oi", "open_interest", "opnInterest")
 _VOLUME_KEYS = ("v", "volume", "vol", "ltq")
@@ -51,6 +57,8 @@ class TickNormalizer:
             open_interest=_as_int(_first(payload, _OI_KEYS)),
             volume=_as_int(_first(payload, _VOLUME_KEYS)),
             ts=_as_float(_first(payload, _TIME_KEYS)) or time.time(),
+            prev_close=_as_float(_first(payload, _PREV_CLOSE_KEYS)),
+            day_open=_as_float(_first(payload, _OPEN_KEYS)),
         )
 
     def _resolve(self, payload: dict[str, Any]) -> Instrument | None:

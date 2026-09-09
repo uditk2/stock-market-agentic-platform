@@ -207,3 +207,69 @@ def test_a_feed_that_fails_to_start_does_not_lose_the_session():
     assert ok is True
     assert "did not start" in message and "boom" in message
     assert state.feed_mode != "live"
+
+
+def test_the_feed_starts_when_the_login_runs_off_the_event_loop():
+    """An admin request runs in a worker thread, which has no event loop.
+
+    `asyncio.get_event_loop()` raises there, and it was the first statement in
+    TickStream.start() — so the subscribe never ran, the login returned 500,
+    and the app reported a live feed that could not receive a tick.
+    """
+    import asyncio
+    import threading
+    from unittest import mock
+
+    from fake_feed import FakeFeed
+
+    from livegraph.api.state import AppState
+    from livegraph.feed import NoFeed
+
+    state = AppState(feed=NoFeed("no credentials"))
+
+    async def capture_loop():
+        state.start()
+
+    asyncio.run(capture_loop())
+    assert state._loop is not None
+
+    replacement = FakeFeed([("INFY", 1500.0, -1.0)])
+    outcome = {}
+
+    def login_off_the_loop():
+        with mock.patch.object(
+            AppState, "_live_feed_from", return_value=(replacement, "live", "42 contracts")
+        ):
+            outcome["result"] = state._start_live_feed(object())
+
+    worker = threading.Thread(target=login_off_the_loop)
+    worker.start()
+    worker.join()
+
+    ok, message = outcome["result"]
+    assert ok and "live" in message
+    assert replacement.started, "the feed was registered but never subscribed"
+
+
+def test_a_feed_that_cannot_start_does_not_leave_the_app_claiming_to_be_live():
+    from unittest import mock
+
+    from fake_feed import FakeFeed
+
+    from livegraph.api.state import AppState
+    from livegraph.feed import NoFeed
+
+    original = NoFeed("no credentials")
+    state = AppState(feed=original)
+
+    exploding = FakeFeed([("INFY", 1500.0, -1.0)])
+    with mock.patch.object(exploding, "start", side_effect=RuntimeError("no loop")):
+        with mock.patch.object(
+            AppState, "_live_feed_from", return_value=(exploding, "live", "42 contracts")
+        ):
+            ok, message = state._start_live_feed(object())
+
+    assert ok is True and "did not start" in message
+    #: The important part: not still saying "live" with nothing behind it.
+    assert state.feed_mode != "live"
+    assert state.feed is original

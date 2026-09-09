@@ -6,6 +6,7 @@ one of them goes through AppState.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -49,6 +50,7 @@ class AppState:
         self.feed, self.feed_mode, self.feed_detail = self._resolve_feed(feed)
         self.kotak_session: "KotakSession | None" = None
         self._last_history_write = 0.0
+        self._loop = None
         self._subscribers: list = []
         self._lock = threading.Lock()
         self.analyst = AnalystService(self._analyst_deps())
@@ -125,7 +127,7 @@ class AppState:
         selected = [i for i in instruments if i.underlying in tradable]
         if not selected:
             raise RuntimeError("no F&O contract matched a graph symbol")
-        stream = TickStream(client, selected)
+        stream = TickStream(client, selected, loop=self._loop)
         return stream, "live", f"{len(selected)} contracts"
 
     def _analyst_deps(self) -> AnalystDeps:
@@ -140,6 +142,13 @@ class AppState:
     # ---- lifecycle ---------------------------------------------------
 
     def start(self) -> None:
+        #: Captured here because this runs on the event loop, and a feed built
+        #: later from an admin request will not be: that thread has no loop to
+        #: find, and the stream needs one to hand ticks back to the app.
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = None
         self.feed.start()
         self._start_sandbox()
 
@@ -268,19 +277,25 @@ class AppState:
             #: replace on the strength of a login.
             return True, "Session established. The existing feed was left alone."
 
+        previous = self.feed
         try:
             stream, mode, detail = self._live_feed_from(client)
+            self.feed = stream
+            self.feed_mode, self.feed_detail = mode, detail
+            self.feed.add_handler(self._on_tick)
+            #: Inside the try. `start()` is where the subscribe happens, so a
+            #: failure here leaves a feed that is registered and not listening —
+            #: the app claiming to be live while no tick can arrive.
+            self.feed.start()
         except Exception as exc:  # noqa: BLE001 - the login worked; this is separate
             logger.exception("could not start the feed after login")
+            self.feed = previous
+            self.feed_mode, self.feed_detail = "error", f"feed did not start: {exc}"
             return True, (
                 f"Session established, but the feed did not start: {exc}. "
                 "Restarting the app will retry it."
             )
 
-        self.feed = stream
-        self.feed_mode, self.feed_detail = mode, detail
-        self.feed.add_handler(self._on_tick)
-        self.feed.start()
         logger.info("feed started after manual login: %s", detail)
         return True, f"Session established and the feed is live: {detail}."
 

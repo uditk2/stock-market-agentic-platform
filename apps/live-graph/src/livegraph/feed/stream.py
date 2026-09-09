@@ -38,7 +38,7 @@ class TickStream:
     # ---- lifecycle ---------------------------------------------------
 
     def start(self) -> None:
-        self._loop = self._loop or asyncio.get_event_loop()
+        self._loop = self._loop or _current_loop()
         self._client.on_message = self._on_message
         self._client.on_error = self._on_error
         self._client.on_close = self._on_close
@@ -132,6 +132,27 @@ class TickStream:
     @property
     def instrument_count(self) -> int:
         return len(self._instruments)
+
+
+def _current_loop():
+    """The running loop, or None when started off the loop's own thread.
+
+    `asyncio.get_event_loop()` raises there, and this is started from two
+    places: the lifespan, which runs on the loop, and an admin request, which
+    runs in a worker thread. Raising in the second took down a login that had
+    already succeeded and left the app claiming a feed it had not subscribed.
+
+    None is survivable — `_dispatch` checks for it — but it means ticks reach
+    no handler, so the caller is expected to pass a loop rather than rely on
+    this. It exists so a missing loop degrades instead of exploding.
+    """
+    try:
+        return asyncio.get_running_loop()
+    except RuntimeError:
+        logger.warning(
+            "no running event loop for the tick stream; ticks will not be dispatched"
+        )
+        return None
 
 
 def _safe_call(handler: TickHandler, tick: Tick) -> None:

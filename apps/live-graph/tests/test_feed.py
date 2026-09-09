@@ -112,6 +112,36 @@ def test_falls_back_to_trading_symbol_when_token_unknown(normalizer):
     assert ticks[0].underlying == "RELIANCE"
 
 
+# ---- the envelope Kotak actually sends -------------------------------
+#
+# Not a bare quote: `{"type": ..., "data": [...]}`. Parsing the envelope finds
+# no `ltp` on it and drops the frame, so a fully working session — logged in,
+# socket open, tokens subscribed — delivered no price at all and said nothing
+# beyond "frame produced no tick".
+
+
+def test_quotes_inside_an_envelope_are_read(normalizer):
+    ticks = normalizer.normalize_message(
+        {"type": "quote", "data": [{"tk": "11536", "ltp": "1425.50"}, {"tk": "1594", "ltp": "1500"}]}
+    )
+    assert [t.underlying for t in ticks] == ["RELIANCE", "INFY"]
+
+
+def test_a_single_quote_in_an_envelope_is_read(normalizer):
+    ticks = normalizer.normalize_message({"type": "quote", "data": {"tk": "1594", "ltp": "1500"}})
+    assert ticks[0].underlying == "INFY"
+
+
+def test_an_envelope_carrying_no_quotes_is_quiet(normalizer):
+    assert normalizer.normalize_message({"type": "heartbeat", "data": []}) == []
+
+
+def test_a_quote_that_carries_its_own_price_is_not_unwrapped(normalizer):
+    """`data` on a priced dict is that quote's payload, not an envelope around it."""
+    ticks = normalizer.normalize_message({"tk": "11536", "ltp": "1425.50", "data": "anything"})
+    assert ticks[0].ltp == 1425.50
+
+
 def test_a_supplied_totp_makes_the_stored_secret_unnecessary():
     """The secret is only there to derive a code unattended.
 

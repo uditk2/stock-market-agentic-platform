@@ -27,6 +27,14 @@ _SYMBOL_KEYS = ("ts", "trading_symbol", "tradingSymbol", "symbol")
 _SEGMENT_KEYS = ("e", "exchange_segment", "segment")
 _TIME_KEYS = ("ft", "feed_time", "ltt", "timestamp")
 
+#: Kotak does not send a bare quote. It sends an envelope — `{"type": "...",
+#: "data": [...]}` — and the quotes are inside `data`. The envelope carries no
+#: price of its own, so parsing it directly yields nothing at all.
+_ENVELOPE_KEYS = ("data", "d", "payload", "message")
+
+#: A frame nested deeper than this is not a shape worth chasing.
+_MAX_ENVELOPE_DEPTH = 4
+
 
 class TickNormalizer:
     """Maps raw socket payloads to Ticks using a token -> Instrument index."""
@@ -35,9 +43,8 @@ class TickNormalizer:
         self._by_token = instruments
 
     def normalize_message(self, message: Any) -> list[Tick]:
-        """A single socket message may carry one or many quote dicts."""
-        payloads = message if isinstance(message, list) else [message]
-        ticks = (self.normalize_one(p) for p in payloads if isinstance(p, dict))
+        """A socket message may carry one quote, many, or an envelope of them."""
+        ticks = (self.normalize_one(p) for p in quote_payloads(message))
         return [tick for tick in ticks if tick is not None]
 
     def normalize_one(self, payload: dict[str, Any]) -> Tick | None:
@@ -72,6 +79,25 @@ class TickNormalizer:
         return next(
             (i for i in self._by_token.values() if i.trading_symbol == symbol), None
         )
+
+
+def quote_payloads(message: Any, depth: int = 0) -> list[dict[str, Any]]:
+    """Flatten a socket message down to the quote dicts inside it.
+
+    A dict is treated as an envelope only when it holds no price itself, so a
+    quote that happens to carry one of these keys is never unwrapped past the
+    data it came to deliver.
+    """
+    if depth > _MAX_ENVELOPE_DEPTH:
+        return []
+    if isinstance(message, list):
+        return [p for item in message for p in quote_payloads(item, depth + 1)]
+    if not isinstance(message, dict):
+        return []
+    inner = _first(message, _ENVELOPE_KEYS)
+    if inner is not None and _first(message, _LTP_KEYS) is None:
+        return quote_payloads(inner, depth + 1)
+    return [message]
 
 
 def parse_segment(value: str) -> Segment | None:

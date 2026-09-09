@@ -66,6 +66,9 @@ class NewsItemOut(BaseModel):
     source: str
     entities: dict[str, str]
     fo: bool
+    #: "single" or "roundup". A round-up lists several unrelated companies, so
+    #: its tags name them separately and never pair them.
+    kind: str = "single"
 
 
 class ImpactRowOut(BaseModel):

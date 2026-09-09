@@ -8,9 +8,10 @@ succeed before the socket will accept a subscribe.
 from __future__ import annotations
 
 import logging
+import re
 import time
 
-from .config import KotakSettings
+from .config import KotakSettings, mobile_spellings
 from .totp import TotpError, current_code
 
 logger = logging.getLogger(__name__)
@@ -60,19 +61,55 @@ class KotakSession:
             code = totp or generate_totp(self._settings.totp_secret)
         except TotpError as exc:
             raise KotakAuthError(str(exc)) from exc
-        self._call(
-            client.totp_login,
-            "totp_login",
-            mobile_number=self._settings.mobile_number,
-            ucc=self._settings.ucc,
-            totp=code,
-        )
+        self._totp_login(client, code)
         self._call(client.totp_validate, "totp_validate", mpin=self._settings.mpin)
         self._client = client
         self._established_at = time.time()
         self._last_error = None
         logger.info("Kotak session established for ucc=%s", self._settings.ucc)
         return client
+
+    def _totp_login(self, client, code: str) -> None:
+        """Log in, trying each spelling of the mobile number Kotak may want.
+
+        Kotak checks `mobileNumber` as a field before it checks the credentials
+        behind it, so the wrong spelling of a correct number fails exactly like
+        a wrong number. The same code serves every attempt: it is one 30-second
+        window, and a field rejection never reaches the check that would spend
+        it. Any other error is final and is raised where it happened.
+        """
+        spellings = mobile_spellings(self._settings.mobile_number)
+        for attempt, mobile in enumerate(spellings, start=1):
+            try:
+                self._call(
+                    client.totp_login,
+                    "totp_login",
+                    mobile_number=mobile,
+                    ucc=self._settings.ucc,
+                    totp=code,
+                )
+            except KotakAuthError as exc:
+                if not _is_mobile_rejection(str(exc)):
+                    raise
+                if attempt == len(spellings):
+                    #: Every form refused. The format is not the problem, so
+                    #: say what is left: the digits, or which UCC they belong to.
+                    raise KotakAuthError(
+                        "Kotak refused the mobile number in every form it accepts "
+                        "(+91XXXXXXXXXX, 91XXXXXXXXXX and the ten digits alone). "
+                        "Check it is the number registered against this UCC. "
+                        f"Kotak said: {exc}"
+                    ) from exc
+                logger.info(
+                    "Kotak refused the mobile number's spelling (%d of %d); retrying",
+                    attempt, len(spellings),
+                )
+                continue
+            if attempt > 1:
+                #: Worth knowing: the stored value needs rewriting to stop
+                #: paying for two rejected round trips every morning.
+                logger.info("Kotak accepted the mobile number on spelling %d", attempt)
+            return
 
     @property
     def established_at(self) -> float | None:
@@ -121,6 +158,14 @@ def _default_client_factory(settings: KotakSettings):
         neo_fin_key=None,
         consumer_key=settings.consumer_key,
     )
+
+
+#: Kotak names the field it refused: "Invalid field 'MobileNumber'".
+_MOBILE_FIELD = re.compile(r"mobile\s*number", re.I)
+
+
+def _is_mobile_rejection(message: str) -> bool:
+    return bool(_MOBILE_FIELD.search(message))
 
 
 def _is_error(response: dict) -> bool:

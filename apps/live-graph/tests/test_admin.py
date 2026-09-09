@@ -126,8 +126,10 @@ def test_broker_status_never_returns_credential_values(unlocked):
     body = unlocked.get("/api/admin/broker").json()
     raw = unlocked.get("/api/admin/broker").text
 
+    #: Pinned, so a field added to this payload has to be considered here
+    #: before it can carry a value out of the process.
     assert set(body["credentials"][0]) == {
-        "name", "label", "set", "placeholder", "hint", "source",
+        "name", "label", "set", "placeholder", "hint", "source", "problem",
     }
     #: Whatever the local .env holds, none of it may appear in the payload.
     settings = KotakSettings()
@@ -442,3 +444,46 @@ def test_a_malformed_code_is_rejected_before_reaching_kotak(unlocked):
     finally:
         for field in ("consumer_key", "mobile_number", "ucc", "mpin"):
             credentials.write({field: ""})
+
+
+# ---- a value that is set and still cannot work -----------------------
+#
+# Presence is not usability. A mobile number in a shape Kotak refuses and a
+# TOTP secret that is not base32 both pass every check the page had, and then
+# fail at the broker — the worst place to find out. The API says which field is
+# wrong and why, in words that never quote the value.
+
+
+def test_a_malformed_mobile_number_is_named(unlocked, monkeypatch):
+    from livegraph.feed.config import KotakSettings
+
+    monkeypatch.setattr(
+        "livegraph.api.routes.admin.load_kotak_settings",
+        lambda: KotakSettings(
+            consumer_key="k", mobile_number="98765", ucc="ABC12", mpin="1234",
+            totp_secret="JBSWY3DPEHPK3PXP",
+        ),
+    )
+    fields = {f["name"]: f for f in unlocked.get("/api/admin/broker").json()["credentials"]}
+
+    assert fields["mobile_number"]["problem"] == "not a ten-digit Indian mobile number"
+    assert fields["ucc"]["problem"] is None
+    #: The value itself must not travel, whatever is wrong with it.
+    assert "98765" not in unlocked.get("/api/admin/broker").text
+
+
+def test_a_usable_mobile_number_has_no_problem(unlocked, monkeypatch):
+    from livegraph.feed.config import KotakSettings
+
+    monkeypatch.setattr(
+        "livegraph.api.routes.admin.load_kotak_settings",
+        lambda: KotakSettings(
+            consumer_key="k", mobile_number="+919876543210", ucc="ABC12", mpin="1234",
+            totp_secret="123456",
+        ),
+    )
+    fields = {f["name"]: f for f in unlocked.get("/api/admin/broker").json()["credentials"]}
+
+    assert fields["mobile_number"]["problem"] is None
+    #: Six digits is a code, not a base32 secret, and it will never derive one.
+    assert fields["totp_secret"]["problem"] == "not a usable base32 secret"

@@ -37,6 +37,7 @@ export function NewsFeed({ onSelect }: { onSelect: (symbol: string) => void }) {
           <CardTitle>News</CardTitle>
           <CardDescription>
             Headlines resolved to graph nodes. Untagged stories are hidden behind the filter.
+            Round-ups are marked: their names are listed together, not related.
           </CardDescription>
         </div>
         <div className="flex gap-2">
@@ -74,6 +75,14 @@ export function NewsFeed({ onSelect }: { onSelect: (symbol: string) => void }) {
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <Badge variant="secondary" className="text-[10px]">{item.source}</Badge>
+                  {item.kind === "roundup" && (
+                    <Badge
+                      variant="outline"
+                      className="border-amber-500/40 text-[10px] text-amber-700 dark:text-amber-400"
+                    >
+                      Round-up
+                    </Badge>
+                  )}
                   {Object.keys(item.entities).map((nodeId) => (
                     <Badge
                       key={nodeId}
@@ -85,6 +94,12 @@ export function NewsFeed({ onSelect }: { onSelect: (symbol: string) => void }) {
                     </Badge>
                   ))}
                 </div>
+                {item.kind === "roundup" && (
+                  <p className="text-muted-foreground mt-1 text-[11px] leading-snug">
+                    Separate stories under one headline. Each name is tagged on its own
+                    account; nothing here links them to each other.
+                  </p>
+                )}
               </article>
             ))}
           </div>

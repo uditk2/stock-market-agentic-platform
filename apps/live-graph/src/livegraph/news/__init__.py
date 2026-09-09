@@ -1,5 +1,6 @@
 """RSS ingestion and entity resolution. Independent of `graph` and `feed`."""
 
+from .classify import NewsKind, classify
 from .models import FeedHealth, FeedSource, NewsItem
 from .parser import parse_feed, strip_html
 from .poller import NewsPoller
@@ -12,7 +13,9 @@ __all__ = [
     "FeedHealth",
     "FeedSource",
     "NewsItem",
+    "NewsKind",
     "NewsPoller",
+    "classify",
     "parse_feed",
     "strip_html",
 ]

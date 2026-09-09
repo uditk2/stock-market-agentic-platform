@@ -46,6 +46,9 @@ Rules:
 - Name the strongest piece of evidence first.
 - If the verdict is "Unexplained", say what is missing rather than speculating
   about a cause.
+- A headline marked [round-up] lists several unrelated companies together. It
+  is news for this stock, but never treat the other names in it as connected to
+  it or to each other.
 - No price targets, no predictions, no advice.
 """
 
@@ -181,7 +184,10 @@ def brief(scan: StockScan) -> str:
     lines.append("")
     if scan.news:
         lines.append("Headlines:")
-        lines += [f"  [{n.scope}] {n.title} ({n.source})" for n in scan.news]
+        lines += [
+            f"  [{n.scope}]{' [round-up]' if n.roundup else ''} {n.title} ({n.source})"
+            for n in scan.news
+        ]
     else:
         lines.append("Headlines: none found for this stock, its sector, or the market.")
     return "\n".join(lines)

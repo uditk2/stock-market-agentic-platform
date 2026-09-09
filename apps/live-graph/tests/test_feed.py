@@ -237,3 +237,105 @@ def test_the_csv_column_names_kotak_actually_uses_are_parsed():
     parsed = parse_instruments(rows, Segment.FNO)
     assert parsed[0].lot_size == 500
     assert parsed[0].expiry == "2026-09-25"
+
+
+# ---- the mobile number Kotak will accept -----------------------------
+#
+# `totp_login` validates `mobileNumber` as a field before it checks the
+# credentials behind it, and refuses the spelling it does not want with
+# "Invalid field 'MobileNumber'; must be a valid mobile number" — the same
+# failure a wrong number gives, from a number that is entirely correct. The
+# login therefore carries every spelling of the same ten digits rather than
+# asking an operator to guess which one their broker wants today.
+
+
+@pytest.mark.parametrize(
+    "typed",
+    ["+919876543210", "919876543210", "9876543210", "09876543210",
+     "+91 98765 43210", "+91-98765-43210"],
+)
+def test_every_way_of_writing_one_number_yields_the_same_spellings(typed):
+    from livegraph.feed.config import mobile_spellings
+
+    assert mobile_spellings(typed) == ("+919876543210", "919876543210", "9876543210")
+
+
+@pytest.mark.parametrize("typed", ["", "98765", "not a number", "+1 555 0100"])
+def test_an_unreadable_number_is_passed_through_untouched(typed):
+    """Kotak's own words are more use than a guess this module invented."""
+    from livegraph.feed.config import mobile_spellings
+
+    assert mobile_spellings(typed) == (typed.strip(),)
+
+
+def _settings_with_mobile(value: str):
+    from livegraph.feed.config import KotakSettings
+
+    return KotakSettings(
+        consumer_key="k", mobile_number=value, ucc="ABC12", mpin="1234", totp_secret="",
+    )
+
+
+class _PickyClient:
+    """Kotak, refusing every spelling of the number but one."""
+
+    REJECTION = {"error": [{"code": "400", "message": "Invalid field 'MobileNumber'"}]}
+
+    def __init__(self, accepts: str):
+        self.accepts = accepts
+        self.tried: list[str] = []
+
+    def totp_login(self, mobile_number=None, **kwargs):
+        self.tried.append(mobile_number)
+        if mobile_number != self.accepts:
+            return dict(self.REJECTION)
+        return {"data": {"token": "view"}}
+
+    def totp_validate(self, **kwargs):
+        return {"data": {"token": "trade"}}
+
+
+@pytest.mark.parametrize("accepted", ["+919876543210", "919876543210", "9876543210"])
+def test_login_finds_the_spelling_kotak_wants(accepted):
+    from livegraph.feed import KotakSession
+
+    client = _PickyClient(accepts=accepted)
+    session = KotakSession(_settings_with_mobile("+919876543210"), client_factory=lambda _: client)
+    session.login(totp="123456")
+
+    assert session.is_active
+    assert client.tried[-1] == accepted
+    #: It stops at the first one that works rather than trying them all.
+    assert accepted not in client.tried[:-1]
+
+
+def test_a_number_refused_in_every_form_says_so():
+    """Once the format is ruled out, what is left is the digits or the UCC."""
+    from livegraph.feed import KotakAuthError, KotakSession
+
+    client = _PickyClient(accepts="nothing at all")
+    session = KotakSession(_settings_with_mobile("+919876543210"), client_factory=lambda _: client)
+    with pytest.raises(KotakAuthError, match="every form"):
+        session.login(totp="123456")
+
+    assert len(client.tried) == 3
+
+
+def test_an_error_that_is_not_about_the_mobile_number_is_not_retried():
+    """A wrong TOTP must fail once, not three times against a live endpoint."""
+    from livegraph.feed import KotakAuthError, KotakSession
+
+    class WrongTotp:
+        def __init__(self):
+            self.calls = 0
+
+        def totp_login(self, **kwargs):
+            self.calls += 1
+            return {"error": [{"code": "401", "message": "Invalid TOTP"}]}
+
+    client = WrongTotp()
+    session = KotakSession(_settings_with_mobile("+919876543210"), client_factory=lambda _: client)
+    with pytest.raises(KotakAuthError, match="Invalid TOTP"):
+        session.login(totp="123456")
+
+    assert client.calls == 1

@@ -194,6 +194,7 @@ function NewsRow({ item }: { item: ScopedNews }) {
         <span className="text-muted-foreground block text-xs">
           {item.source}
           {item.matched_node && item.scope !== "stock" && ` · tagged ${item.matched_node}`}
+          {item.roundup && " · round-up, the other names in it are unrelated"}
         </span>
       </div>
     </div>

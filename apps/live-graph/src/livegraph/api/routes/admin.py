@@ -31,7 +31,7 @@ from pydantic import BaseModel, Field
 
 from ...credentials import KOTAK_FIELDS, sources, write
 from ...feed import KotakSettings
-from ...feed.config import load_kotak_settings
+from ...feed.config import load_kotak_settings, mobile_digits
 from ...feed.totp import TotpError, current_code
 from ...llm import control_panel_url, get_llm_settings, probe_cliproxy
 from .. import security
@@ -62,6 +62,9 @@ class CredentialFieldOut(BaseModel):
     #: "store" (typed in here), "env" (.env) or "unset". Shown so an operator
     #: editing a field can see they are overriding a deployed value.
     source: str
+    #: Why a field that passes every presence check will still not work. Says
+    #: what is wrong with the value, never what the value is.
+    problem: str | None = None
 
 
 class TotpOut(BaseModel):
@@ -226,6 +229,7 @@ def broker_status(state: AppState = Depends(get_state)) -> BrokerStatusOut:
                 placeholder=name in placeholders,
                 hint=hint,
                 source=origin.get(name, "unset"),
+                problem=_problem(name, settings) if name not in missing else None,
             )
             for name, label, hint in FIELDS
         ],
@@ -328,6 +332,25 @@ def model_status() -> ModelStatusOut:
             )
         ],
     )
+
+
+def _problem(name: str, settings: KotakSettings) -> str | None:
+    """What is wrong with a field that is set, in words that name no value.
+
+    A stored value passes every presence check and then fails at Kotak, which
+    is the worst place to find out. These are the two that go wrong in practice.
+
+    Kept to a short phrase: it is rendered as a badge beside the field, and the
+    long form of the TOTP failure is already on the code card below it.
+    """
+    if name == "mobile_number" and not mobile_digits(settings.mobile_number):
+        return "not a ten-digit Indian mobile number"
+    if name == "totp_secret":
+        try:
+            current_code(settings.totp_secret)
+        except TotpError:
+            return "not a usable base32 secret"
+    return None
 
 
 def _totp(settings: KotakSettings) -> TotpOut:

@@ -55,6 +55,7 @@ class NewsOut(BaseModel):
     ts: float
     link: str = ""
     matched_node: str | None = None
+    roundup: bool = False
 
 
 class EvidenceOut(BaseModel):

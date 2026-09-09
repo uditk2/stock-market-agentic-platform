@@ -1,14 +1,53 @@
 from __future__ import annotations
 
+import re
 from typing import ClassVar
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_PUNCTUATION = re.compile(r"[\s()\-.]")
+_INDIA_CODE = "91"
+
 
 def _looks_real(value: str) -> bool:
     text = (value or "").strip()
     return bool(text) and not text.startswith("#")
+
+
+def mobile_digits(value: str) -> str:
+    """The ten subscriber digits, without punctuation, country code or trunk 0.
+
+    Empty when the value cannot be read as an Indian mobile number at all — a
+    number no spelling will rescue, which the admin page says so rather than
+    letting Kotak be the one to discover it.
+    """
+    digits = _PUNCTUATION.sub("", (value or "").strip()).lstrip("+")
+    if not digits.isdigit():
+        return ""
+    if len(digits) == 12 and digits.startswith(_INDIA_CODE):
+        digits = digits[2:]
+    elif len(digits) == 11 and digits.startswith("0"):
+        digits = digits[1:]
+    return digits if len(digits) == 10 else ""
+
+
+def mobile_spellings(value: str) -> tuple[str, ...]:
+    """Every spelling of the number Kotak might take, most likely first.
+
+    `totp_login` validates `mobileNumber` as a field before it looks at the
+    credentials behind it, and rejects the spelling it does not want with
+    "Invalid field 'MobileNumber'; must be a valid mobile number" — without
+    saying which one it wanted. The same ten digits are correct in all three
+    forms, so the login tries them in turn rather than making an operator guess
+    at a format their broker never documented.
+    """
+    digits = mobile_digits(value)
+    if not digits:
+        #: Unreadable. Send what was typed, so Kotak's own words come back
+        #: rather than this module inventing a failure of its own.
+        return ((value or "").strip(),)
+    return (f"+{_INDIA_CODE}{digits}", f"{_INDIA_CODE}{digits}", digits)
 
 
 class KotakSettings(BaseSettings):

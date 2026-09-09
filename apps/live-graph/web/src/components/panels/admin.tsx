@@ -49,15 +49,60 @@ const SOURCE_LABEL: Record<CredentialSource, string> = {
  * answers 401 anyway.
  */
 export function Admin() {
-  const { data: session, refresh: refreshSession } = usePoll(
+  const { data: session, error, refresh: refreshSession } = usePoll(
     () => api.adminSession(),
     STATUS_POLL_MS,
   );
 
-  if (!session) return null;
+  //: Rendering nothing is the one thing this tab must not do: an empty page is
+  //: indistinguishable from a broken build, and the session probe is the first
+  //: call it makes, so a failure here is the only thing it can report.
+  if (error) return <Unreachable what="the admin session" detail={error} onRetry={refreshSession} />;
+  if (!session) return <Checking what="the admin session" />;
   if (!session.enabled) return <NoPassphraseSet />;
   if (!session.authenticated) return <LockScreen onUnlocked={refreshSession} />;
   return <Unlocked onLocked={refreshSession} />;
+}
+
+function Checking({ what }: { what: string }) {
+  return (
+    <p className="text-muted-foreground flex items-center gap-2 text-sm">
+      <Loader2 className="size-4 animate-spin" />
+      Checking {what}…
+    </p>
+  );
+}
+
+/** The API answered with something other than an answer. Say which call, and what it said. */
+function Unreachable({
+  what,
+  detail,
+  onRetry,
+}: {
+  what: string;
+  detail: string;
+  onRetry: () => void;
+}) {
+  return (
+    <Card className="max-w-3xl border-amber-500/40">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <AlertTriangle className="size-4 text-amber-600" />
+          Cannot read {what}
+        </CardTitle>
+        <CardDescription>
+          The admin API did not answer, so this page cannot say what is configured or
+          whether you are logged in. Everything else in the app is unaffected.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="rounded-md border px-3 py-2 font-mono text-xs">{detail}</p>
+        <Button size="sm" variant="outline" onClick={onRetry}>
+          Try again
+        </Button>
+      </CardContent>
+    </Card>
+  );
 }
 
 /**
@@ -158,7 +203,10 @@ function LockScreen({ onUnlocked }: { onUnlocked: () => void }) {
 function Unlocked({ onLocked }: { onLocked: () => void }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Outcome>(null);
-  const { data: status, refresh } = usePoll(() => api.brokerStatus(), STATUS_POLL_MS);
+  const { data: status, error: statusError, refresh } = usePoll(
+    () => api.brokerStatus(),
+    STATUS_POLL_MS,
+  );
   const { data: totp } = usePoll(() => api.brokerTotp(), TOTP_POLL_MS);
   const { data: models } = usePoll(() => api.modelStatus(), MODELS_POLL_MS);
 
@@ -179,7 +227,9 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
     [refresh],
   );
 
-  if (!status) return null;
+  if (statusError)
+    return <Unreachable what="the broker status" detail={statusError} onRetry={refresh} />;
+  if (!status) return <Checking what="the broker status" />;
   const live = status.feed_mode === "live";
 
   return (
@@ -273,28 +323,25 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
 
       <CredentialsForm
         fields={status.credentials}
-        secretUnusable={Boolean(totp && !totp.available && status.credentials.some(
-          (f) => f.name === "totp_secret" && f.set,
-        ))}
         busy={busy}
         onSave={(values) =>
           run(async () => (await api.saveCredentials(values)).message)
         }
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <KeyRound className="size-4" />
-            Current TOTP code
-          </CardTitle>
-          <CardDescription>
-            Derived from the registered secret. Shown so you can confirm the secret is
-            right, or complete a login by hand.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {totp?.available ? (
+      {totp?.available && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <KeyRound className="size-4" />
+              Current TOTP code
+            </CardTitle>
+            <CardDescription>
+              Derived from the stored secret. Shown so you can confirm it matches your
+              authenticator, or complete a login by hand.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="flex items-baseline gap-4">
               <span className="font-mono text-3xl tracking-[0.3em] tabular-nums">
                 {totp.code}
@@ -303,14 +350,9 @@ function Unlocked({ onLocked }: { onLocked: () => void }) {
                 rotates in {totp.expires_in}s
               </span>
             </div>
-          ) : (
-            <p className="text-muted-foreground flex items-start gap-2 text-sm">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-              {totp?.error ?? "No TOTP secret configured."}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
@@ -473,19 +515,16 @@ function BrokerLogin({
  * read back — the API returns presence, never content. An empty box therefore
  * means "leave this alone", which is also what makes it safe to submit the form
  * after changing only one field. The state of each field is stated beside its
- * label instead, since the input itself can no longer show it.
+ * label instead, since the input itself can no longer show it — including
+ * `problem`, which is how a value that passes every presence check and still
+ * cannot work says so here rather than at the broker.
  */
 function CredentialsForm({
   fields,
-  secretUnusable,
   busy,
   onSave,
 }: {
   fields: CredentialField[];
-  //: A stored secret that will not produce a code. It passes every presence
-  //: check, so without saying so here the row reads as correctly configured
-  //: while the login it is supposed to serve keeps failing.
-  secretUnusable: boolean;
   busy: boolean;
   onSave: (values: Record<string, string>) => Promise<void>;
 }) {
@@ -548,12 +587,12 @@ function CredentialsForm({
                     looks like a comment, not a value
                   </Badge>
                 )}
-                {field.name === "totp_secret" && field.set && secretUnusable && (
+                {field.problem && (
                   <Badge
                     variant="outline"
                     className="border-amber-500/40 text-amber-700 dark:text-amber-400"
                   >
-                    stored, but not a usable secret
+                    set, but {field.problem}
                   </Badge>
                 )}
               </div>

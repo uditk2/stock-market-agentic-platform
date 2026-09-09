@@ -84,6 +84,15 @@ class EntityResolver:
     def alias_count(self) -> int:
         return len(self._aliases)
 
+    @property
+    def macro_nodes(self) -> frozenset[str]:
+        """Nodes reached through a macro keyword rather than a company name.
+
+        Crude and the rupee are conditions a story happens under, so they are
+        not names listed beside one another when several are tagged at once.
+        """
+        return frozenset(self._macro_keys.values())
+
 
 class _AliasBuilder:
     def __init__(self, known_nodes: frozenset[str]):

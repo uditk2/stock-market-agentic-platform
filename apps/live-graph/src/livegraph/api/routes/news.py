@@ -46,5 +46,5 @@ def health(state: AppState = Depends(get_state)) -> list[dict]:
 def _to_out(item) -> NewsItemOut:
     return NewsItemOut(
         title=item.title, link=item.link, summary=item.summary, ts=item.ts,
-        source=item.source, entities=item.entities, fo=item.fo,
+        source=item.source, entities=item.entities, fo=item.fo, kind=str(item.kind),
     )

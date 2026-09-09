@@ -86,6 +86,10 @@ export interface ImpactRow {
   actual_change_pct: number | null;
 }
 
+/** A "roundup" lists several unrelated companies, so its tags name them
+ *  separately and never pair them. */
+export type NewsKind = "single" | "roundup";
+
 export interface NewsItem {
   title: string;
   link: string;
@@ -94,6 +98,7 @@ export interface NewsItem {
   source: string;
   entities: Record<string, string>;
   fo: boolean;
+  kind: NewsKind;
 }
 
 export type VerdictKey = "unexplained" | "conflicted" | "stock_specific" | "sector_wide";
@@ -147,6 +152,7 @@ export interface ScopedNews {
   ts: number;
   link: string;
   matched_node: string | null;
+  roundup: boolean;
 }
 
 export interface Narration {
@@ -194,6 +200,8 @@ export interface CredentialField {
   placeholder: boolean;
   hint: string;
   source: CredentialSource;
+  /** Why a field that is set will still not work. Never contains the value. */
+  problem: string | null;
 }
 
 export interface TotpState {

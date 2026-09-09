@@ -93,6 +93,9 @@ class ScopedNews:
     link: str = ""
     #: Which graph node the resolver matched, when it was a tagged headline.
     matched_node: str | None = None
+    #: A list of several companies filed under one headline. It is news for
+    #: this stock, but the other names in it are not connected to it.
+    roundup: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -88,7 +88,7 @@ class AnalystService:
 
         @agent.tool
         def recent_news(ctx: RunContext[AnalystDeps], symbol: str, limit: int = 5) -> dict:
-            """Headlines already tagged to symbol by the news resolver."""
+            """Headlines tagged to symbol. Each row's kind is single or roundup."""
             return tools.recent_news(ctx.deps, symbol, limit)
 
         @agent.tool
@@ -123,8 +123,9 @@ class AnalystService:
             thread,
             "Call proposed_edges. For each candidate, say whether a real economic link "
             "plausibly exists (supplier, competitor, shared input) or whether shared index "
-            "flow explains it. Recommend accept or reject per pair, with the edge type and "
-            "sign you would use if accepted. Say when you are unsure.",
+            "flow explains it. Two names sharing a round-up headline is not a link. "
+            "Recommend accept or reject per pair, with the edge type and sign you would "
+            "use if accepted. Say when you are unsure.",
         )
 
 

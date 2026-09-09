@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 
+from .classify import classify
 from .models import FeedHealth, FeedSource, NewsItem
 from .parser import parse_feed
 from .resolver import EntityResolver
@@ -71,8 +72,14 @@ class NewsPoller:
         item.source = source_name
         item.entities = self._resolver.resolve(f"{item.title} {item.summary}")
         item.fo = any(self._is_fo(node_id) for node_id in item.entities)
+        item.kind = classify(item.title, self._company_tags(item.entities))
         self._items[item.link] = item
         return item
+
+    def _company_tags(self, entities: dict[str, str]) -> list[str]:
+        """The tagged companies, without the macro conditions among them."""
+        macros = self._resolver.macro_nodes
+        return [node_id for node_id in entities if node_id not in macros]
 
     def _fetch(self, url: str) -> bytes:
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})

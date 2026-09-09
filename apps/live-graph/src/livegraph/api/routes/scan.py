@@ -147,7 +147,7 @@ def _stock_out(scan: StockScan, why: str, context: SectorContext | None) -> Stoc
         news=[
             NewsOut(
                 scope=str(n.scope), title=n.title, source=n.source,
-                ts=n.ts, link=n.link, matched_node=n.matched_node,
+                ts=n.ts, link=n.link, matched_node=n.matched_node, roundup=n.roundup,
             )
             for n in scan.news
         ],

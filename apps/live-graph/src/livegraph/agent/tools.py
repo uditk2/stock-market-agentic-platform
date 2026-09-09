@@ -126,13 +126,22 @@ def propagate_impact(deps: AnalystDeps, origin: str, direction: str = "up") -> d
 
 
 def recent_news(deps: AnalystDeps, symbol: str, limit: int = 5) -> dict:
-    """Headlines already tagged to `symbol` by the news resolver."""
+    """Headlines already tagged to `symbol`, each marked single or round-up."""
     key = symbol.strip().upper()
     items = deps.news_for(key)[:limit]
-    return {
-        "symbol": key,
-        "rows": [{"title": i.title, "source": i.source, "ts": i.ts, "link": i.link} for i in items],
-    }
+    rows = [
+        {"title": i.title, "source": i.source, "ts": i.ts, "link": i.link, "kind": str(i.kind)}
+        for i in items
+    ]
+    out = {"symbol": key, "rows": rows}
+    if any(row["kind"] == "roundup" for row in rows):
+        #: Said here rather than in the prompt alone, because this is where the
+        #: model is holding a headline that names companies it did not ask for.
+        out["caveat"] = (
+            "A round-up lists several unrelated companies under one headline. It is "
+            "news for this stock; the other names in it are not connected to it."
+        )
+    return out
 
 
 def proposed_edges(deps: AnalystDeps, limit: int = 10) -> dict:
@@ -154,7 +163,10 @@ def proposed_edges(deps: AnalystDeps, limit: int = 10) -> dict:
             }
             for p in proposals
         ],
-        "caveat": "Correlation is not a relationship. These need human review before being added.",
+        "caveat": (
+            "Correlation is not a relationship, and neither is appearing in the same "
+            "round-up headline. These need human review before being added."
+        ),
     }
 
 

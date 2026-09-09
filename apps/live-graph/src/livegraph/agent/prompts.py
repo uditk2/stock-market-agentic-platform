@@ -33,6 +33,9 @@ How to work:
   "The graph does not explain this" is a valid and useful answer.
 - Distinguish what the graph says from what the news says, and keep both
   separate from anything you are inferring.
+- A headline of kind "roundup" is a list of separate stories: a screener result
+  or a broker's picks. It is news for each company named in it and evidence of
+  a relationship between none of them.
 
 This is informational analysis, not investment advice.
 """
